@@ -5,6 +5,7 @@ import {
   getConfig,
   getHealth,
   getHint,
+  loadGame,
   importPgn,
   newGame,
   resignGame,
@@ -277,6 +278,12 @@ export function GameProvider({ children }) {
     return exportPgn(state.gameId);
   }, [state.gameId]);
 
+  const loadPlayedGame = useCallback(async (gameId) => {
+    const result = await loadGame(gameId);
+    dispatch({ type: "IMPORT_GAME", payload: result });
+    return result;
+  }, []);
+
   const streamHandlers = useMemo(
     () => ({
       onCommentaryChunk: (payload) => dispatch({ type: "COMMENTARY_CHUNK", payload }),
@@ -303,8 +310,9 @@ export function GameProvider({ children }) {
       setViewFen,
       importGamePgn,
       exportGamePgn,
+      loadPlayedGame,
     }),
-    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen, importGamePgn, exportGamePgn]
+    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen, importGamePgn, exportGamePgn, loadPlayedGame]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

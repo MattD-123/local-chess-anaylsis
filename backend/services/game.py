@@ -15,6 +15,7 @@ from database.repo import ChessRepository
 from providers.engine.router import EngineRouter
 from providers.llm.router import LLMRouter
 from schemas.api import (
+    GameLoadResponse,
     GameOptions,
     GameOptionsPatch,
     GameSettingsResponse,
@@ -819,6 +820,89 @@ class GameService:
         self._repo.refresh_opening_stats()
         rows = self._repo.get_opening_stats()
         return OpeningStatsResponse(items=rows)
+
+    async def load_game(self, game_id: str) -> GameLoadResponse:
+        session = self._sessions.get(game_id)
+        if session is not None:
+            self._touch(session)
+            current_eval = session.move_history[-1].eval_after if session.move_history else Evaluation(normalized_pawns=0.0)
+            return GameLoadResponse(
+                game_id=session.game_id,
+                player_color=session.player_color,
+                fen=session.board.fen(),
+                move_history=session.move_history,
+                opening=session.opening,
+                current_eval=current_eval,
+                game_over=session.game_over,
+                result=session.result,
+                termination_reason=session.termination_reason,
+                loaded_move_count=len(session.move_history),
+                options=session.options,
+            )
+
+        game_row = self._repo.get_game(game_id)
+        if not game_row:
+            raise ValueError("Game not found")
+
+        move_history = self._repo.get_moves(game_id)
+        options = self._default_game_options()
+        engine_skill = game_row.get("engine_skill")
+        if isinstance(engine_skill, int):
+            options = options.model_copy(update={"skill_level": max(0, min(20, engine_skill))})
+
+        opening = None
+        if game_row.get("opening_eco") and game_row.get("opening_name"):
+            opening_fen = move_history[0].fen_before if move_history else chess.STARTING_FEN
+            opening = OpeningInfo(
+                eco=game_row["opening_eco"],
+                name=game_row["opening_name"],
+                fen=opening_fen,
+                in_opening=False,
+                moves_remaining=0,
+            )
+
+        if move_history:
+            fen = move_history[-1].fen_after
+            current_eval = move_history[-1].eval_after
+        else:
+            fen = chess.STARTING_FEN
+            current_eval = Evaluation(normalized_pawns=0.0)
+
+        board = chess.Board(fen)
+        result = game_row.get("result")
+        termination_reason = game_row.get("termination_reason")
+        game_over = bool(result and result != "*")
+
+        self._check_capacity_or_raise()
+        hydrated = GameSession(
+            game_id=game_id,
+            player_color=game_row.get("player_color") or "white",
+            options=options,
+            board=board,
+            move_history=move_history,
+            opening=opening,
+            in_opening=False,
+            game_over=game_over,
+            result=result,
+            termination_reason=termination_reason,
+        )
+        self._touch(hydrated)
+        self._sessions[game_id] = hydrated
+        self._commentary_bus.ensure_game(game_id)
+
+        return GameLoadResponse(
+            game_id=hydrated.game_id,
+            player_color=hydrated.player_color,
+            fen=hydrated.board.fen(),
+            move_history=hydrated.move_history,
+            opening=hydrated.opening,
+            current_eval=current_eval,
+            game_over=hydrated.game_over,
+            result=hydrated.result,
+            termination_reason=hydrated.termination_reason,
+            loaded_move_count=len(hydrated.move_history),
+            options=hydrated.options,
+        )
 
     async def get_analysis_game_payload(self, game_id: str) -> tuple[GameSession | None, dict | None]:
         session = self._sessions.get(game_id)

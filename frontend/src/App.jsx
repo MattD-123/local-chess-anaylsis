@@ -8,6 +8,7 @@ import OpeningDisplay from "./components/OpeningDisplay";
 import Settings from "./components/Settings";
 import MaterialPanel from "./components/MaterialPanel";
 import AnalysisBoard from "./components/AnalysisBoard";
+import GameLibrary from "./components/GameLibrary";
 import { useGame } from "./providers/GameProvider";
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
     setViewFen,
     importGamePgn,
     exportGamePgn,
+    loadPlayedGame,
   } = useGame();
   const [dismissedGameOverFor, setDismissedGameOverFor] = useState(null);
   const [activeSection, setActiveSection] = useState("play");
@@ -146,6 +148,7 @@ export default function App() {
 
           <div className="grid min-w-0 gap-4">
             <AnalysisBoard state={state} setViewFen={setViewFen} />
+            <GameLibrary activeGameId={state.gameId} onLoadGame={loadPlayedGame} />
             <OpeningDisplay opening={state.opening} />
           </div>
         </section>

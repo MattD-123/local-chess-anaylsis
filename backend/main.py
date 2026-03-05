@@ -22,6 +22,7 @@ from schemas.api import (
     AnalysisResponse,
     ConfigResponse,
     ConfigUpdateRequest,
+    GameLoadResponse,
     HealthResponse,
     HintResponse,
     GameSettingsRequest,
@@ -210,6 +211,18 @@ async def game_analysis(game_id: str, request: Request) -> AnalysisResponse:
 async def game_history(request: Request):
     service = _game_service(request)
     return service.get_history()
+
+
+@app.get("/game/load", response_model=GameLoadResponse)
+async def load_game(game_id: str, request: Request) -> GameLoadResponse:
+    service = _game_service(request)
+    try:
+        return await service.load_game(game_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to load game")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/game/settings", response_model=GameSettingsResponse)

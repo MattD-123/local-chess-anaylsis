@@ -52,6 +52,11 @@ export async function getGameHistory() {
   return parseResponse(response);
 }
 
+export async function loadGame(gameId) {
+  const response = await fetch(`/game/load?game_id=${encodeURIComponent(gameId)}`);
+  return parseResponse(response);
+}
+
 export async function importPgn(payload) {
   const response = await fetch("/game/import-pgn", {
     method: "POST",

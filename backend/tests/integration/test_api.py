@@ -217,6 +217,19 @@ def test_import_and_export_pgn(client: TestClient):
     assert "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6" in exported
 
 
+def test_load_game_from_database(client: TestClient):
+    game = client.post("/game/new", json={"player_color": "white"}).json()
+    game_id = game["game_id"]
+    client.post("/game/move", json={"game_id": game_id, "move": "e2e4"})
+
+    load_response = client.get("/game/load", params={"game_id": game_id})
+    assert load_response.status_code == 200
+    payload = load_response.json()
+    assert payload["game_id"] == game_id
+    assert payload["loaded_move_count"] >= 1
+    assert payload["move_history"]
+
+
 def test_commentary_sse_smoke(client: TestClient):
     async def fake_stream(game_id):
         yield "event: status\\ndata: {\"typing\": false}\\n\\n"
