@@ -39,7 +39,7 @@ it("filters to review moves and selects a move for board jump", () => {
 
   fireEvent.click(screen.getByRole("button", { name: /1\.\s*e5/i }));
   expect(setViewFen).toHaveBeenCalledWith("fen-2");
-  expect(screen.getByText(/Best move suggestion:/i)).toBeInTheDocument();
+  expect(screen.getByText(/Best move suggestion \(current position\):/i)).toBeInTheDocument();
 });
 
 it("refreshes analysis view when state changes between sessions", () => {

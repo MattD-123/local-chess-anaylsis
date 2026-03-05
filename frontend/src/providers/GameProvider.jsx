@@ -21,6 +21,7 @@ const initialState = {
   playerColor: "white",
   fen: "start",
   viewFen: null,
+  viewMoveIndex: null,
   moveHistory: [],
   opening: null,
   currentEval: { normalized_pawns: 0 },
@@ -67,6 +68,7 @@ function reducer(state, action) {
         playerColor: action.payload.player_color || state.playerColor || "white",
         fen: action.payload.fen,
         viewFen: null,
+        viewMoveIndex: null,
         moveHistory: [],
         opening: null,
         commentaryDrafts: {},
@@ -84,6 +86,7 @@ function reducer(state, action) {
       return {
         ...state,
         viewFen: null,
+        viewMoveIndex: null,
         fen: action.payload.fen,
         moveHistory: action.payload.move_history,
         opening: action.payload.opening,
@@ -100,6 +103,7 @@ function reducer(state, action) {
         playerColor: action.payload.player_color || "white",
         fen: action.payload.fen,
         viewFen: null,
+        viewMoveIndex: null,
         moveHistory: action.payload.move_history || [],
         opening: action.payload.opening || null,
         currentEval: action.payload.current_eval || { normalized_pawns: 0 },
@@ -118,6 +122,7 @@ function reducer(state, action) {
       return {
         ...state,
         viewFen: null,
+        viewMoveIndex: null,
         fen: action.payload.fen ?? state.fen,
         currentEval: action.payload.eval ?? state.currentEval,
         moveHistory: action.payload.move
@@ -175,7 +180,21 @@ function reducer(state, action) {
     case "SET_ERROR":
       return { ...state, error: action.payload };
     case "SET_VIEW_FEN":
-      return { ...state, viewFen: action.payload };
+      return { ...state, viewFen: action.payload, viewMoveIndex: null };
+    case "SET_VIEW_MOVE_INDEX": {
+      const index = action.payload;
+      const moves = state.moveHistory || [];
+      if (index == null) {
+        return { ...state, viewMoveIndex: null, viewFen: null };
+      }
+      if (index < 0) {
+        return { ...state, viewMoveIndex: -1, viewFen: moves[0]?.fen_before || null };
+      }
+      if (index >= moves.length) {
+        return { ...state, viewMoveIndex: null, viewFen: null };
+      }
+      return { ...state, viewMoveIndex: index, viewFen: moves[index].fen_after };
+    }
     default:
       return state;
   }
@@ -259,6 +278,10 @@ export function GameProvider({ children }) {
     dispatch({ type: "SET_VIEW_FEN", payload: fen });
   }, []);
 
+  const setViewMoveIndex = useCallback((index) => {
+    dispatch({ type: "SET_VIEW_MOVE_INDEX", payload: index });
+  }, []);
+
   const importGamePgn = useCallback(
     async (pgnText, playerColor = state.playerColor || "white") => {
       const result = await importPgn({
@@ -308,11 +331,12 @@ export function GameProvider({ children }) {
       resign,
       saveSettings,
       setViewFen,
+      setViewMoveIndex,
       importGamePgn,
       exportGamePgn,
       loadPlayedGame,
     }),
-    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen, importGamePgn, exportGamePgn, loadPlayedGame]
+    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen, setViewMoveIndex, importGamePgn, exportGamePgn, loadPlayedGame]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
@@ -327,6 +351,12 @@ export function useGame() {
 }
 
 export function selectDisplayedFen(state) {
+  if (typeof state.viewMoveIndex === "number") {
+    if (state.viewMoveIndex < 0) {
+      return state.moveHistory?.[0]?.fen_before;
+    }
+    return state.moveHistory?.[state.viewMoveIndex]?.fen_after;
+  }
   return state.viewFen || (state.fen === "start" ? undefined : state.fen);
 }
 
@@ -338,6 +368,9 @@ export function selectMoveFen(state, index) {
 }
 
 export function selectViewedMoveIndex(state) {
+  if (typeof state.viewMoveIndex === "number") {
+    return state.viewMoveIndex;
+  }
   const moves = state.moveHistory || [];
   if (moves.length === 0) {
     return -1;

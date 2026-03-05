@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Chess } from "chess.js";
 
 import { selectViewedMoveIndex } from "../../providers/GameProvider";
 
@@ -115,11 +116,38 @@ function sideMetrics(moves, side) {
   };
 }
 
-export default function AnalysisBoard({ state, setViewFen }) {
+function isLegalUciForFen(fen, uci) {
+  if (!fen || !uci || uci.length < 4) {
+    return false;
+  }
+  const game = new Chess();
+  try {
+    game.load(fen);
+    const result = game.move({
+      from: uci.slice(0, 2),
+      to: uci.slice(2, 4),
+      promotion: uci.length > 4 ? uci.slice(4, 5) : "q",
+    });
+    return Boolean(result);
+  } catch {
+    return false;
+  }
+}
+
+export default function AnalysisBoard({ state, setViewFen, setViewMoveIndex }) {
   const [showOnlyBlunders, setShowOnlyBlunders] = useState(false);
   const moves = state.moveHistory || [];
   const viewedIndex = selectViewedMoveIndex(state);
   const isCurrentPosition = state.viewFen == null;
+  const displayedFen = useMemo(() => {
+    if (moves.length === 0) {
+      return null;
+    }
+    if (viewedIndex < 0) {
+      return moves[0].fen_before;
+    }
+    return moves[Math.min(viewedIndex, moves.length - 1)].fen_after;
+  }, [moves, viewedIndex]);
 
   const movesAtViewedMoment = useMemo(() => {
     if (moves.length === 0) {
@@ -154,6 +182,22 @@ export default function AnalysisBoard({ state, setViewFen }) {
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
   const selectedMove = viewedIndex >= 0 ? moves[viewedIndex] : null;
   const selectedPointIndex = points.length - 1;
+  const positionAdvice = useMemo(() => {
+    if (!displayedFen) {
+      return null;
+    }
+    const startIndex = Math.max(0, viewedIndex + 1);
+    for (let index = startIndex; index < moves.length; index += 1) {
+      if (moves[index].fen_before === displayedFen) {
+        const best = moves[index].best_move || null;
+        if (best && isLegalUciForFen(displayedFen, best)) {
+          return best;
+        }
+        return null;
+      }
+    }
+    return null;
+  }, [displayedFen, moves, viewedIndex]);
   const whiteMetrics = useMemo(() => sideMetrics(movesAtViewedMoment, "white"), [movesAtViewedMoment]);
   const blackMetrics = useMemo(() => sideMetrics(movesAtViewedMoment, "black"), [movesAtViewedMoment]);
   const userMetrics = state.playerColor === "black" ? blackMetrics : whiteMetrics;
@@ -170,6 +214,11 @@ export default function AnalysisBoard({ state, setViewFen }) {
   }, [movesAtViewedMoment, showOnlyBlunders]);
 
   const onSelectMove = (move) => {
+    const index = moves.indexOf(move);
+    if (index >= 0 && setViewMoveIndex) {
+      setViewMoveIndex(index);
+      return;
+    }
     setViewFen(move.fen_after);
   };
 
@@ -285,7 +334,7 @@ export default function AnalysisBoard({ state, setViewFen }) {
           <p>
             Selected: <strong>{selectedMove.move_number}. {selectedMove.san}</strong> ({selectedMove.classification})
           </p>
-          <p>Best move suggestion: <strong>{selectedMove.best_move || "N/A"}</strong></p>
+          <p>Best move suggestion (current position): <strong>{positionAdvice || "N/A"}</strong></p>
           <p>
             Eval shift: {selectedMove.eval_before.normalized_pawns.toFixed(2)} to{" "}
             {selectedMove.eval_after.normalized_pawns.toFixed(2)}

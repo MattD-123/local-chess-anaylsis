@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
 
-import { selectDisplayedFen } from "../../providers/GameProvider";
+import { selectDisplayedFen, selectViewedMoveIndex } from "../../providers/GameProvider";
 
 function uciToSquares(uci) {
   if (!uci || uci.length < 4) {
@@ -20,7 +20,8 @@ export default function Board({ state, makeMove, interactive = true }) {
   const containerRef = useRef(null);
 
   const position = optimisticFen || selectDisplayedFen(state);
-  const liveBoard = state.viewFen == null;
+  const viewedIndex = selectViewedMoveIndex(state);
+  const liveBoard = state.viewFen == null && state.viewMoveIndex == null;
 
   const board = useMemo(() => {
     const game = new Chess();
@@ -162,10 +163,34 @@ export default function Board({ state, makeMove, interactive = true }) {
 
   const lastMove = state.moveHistory[state.moveHistory.length - 1];
   const [lastFrom, lastTo] = uciToSquares(lastMove?.uci);
-  const analysisMove = state.viewFen
-    ? state.moveHistory.find((move) => move.fen_after === state.viewFen)
-    : null;
-  const bestMoveUci = analysisMove?.best_move || null;
+  const bestMoveUci = useMemo(() => {
+    if (!position) {
+      return null;
+    }
+    const startIndex = Math.max(0, viewedIndex + 1);
+    for (let index = startIndex; index < state.moveHistory.length; index += 1) {
+      const move = state.moveHistory[index];
+      if (move.fen_before !== position || !move.best_move) {
+        continue;
+      }
+      const probe = new Chess();
+      try {
+        probe.load(position);
+        const legal = probe.move({
+          from: move.best_move.slice(0, 2),
+          to: move.best_move.slice(2, 4),
+          promotion: move.best_move.length > 4 ? move.best_move.slice(4, 5) : "q",
+        });
+        if (legal) {
+          return move.best_move;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+    return null;
+  }, [position, state.moveHistory, viewedIndex]);
   const [bestFrom, bestTo] = uciToSquares(bestMoveUci);
 
   const customSquareStyles = {

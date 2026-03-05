@@ -2,11 +2,11 @@ import React from "react";
 
 import { moveClassToColor, selectMoveFen, selectViewedMoveIndex } from "../../providers/GameProvider";
 
-export default function MoveHistory({ state, setViewFen, showAnalyzeControls = false }) {
+export default function MoveHistory({ state, setViewFen, setViewMoveIndex, showAnalyzeControls = false }) {
   const moves = state.moveHistory || [];
   const viewedIndex = selectViewedMoveIndex(state);
   const startFen = moves[0]?.fen_before || null;
-  const atCurrentPosition = state.viewFen == null;
+  const atCurrentPosition = state.viewFen == null && state.viewMoveIndex == null;
 
   const movePositionLabel = atCurrentPosition
     ? "Viewing current position"
@@ -15,7 +15,7 @@ export default function MoveHistory({ state, setViewFen, showAnalyzeControls = f
       : `Viewing move ${viewedIndex + 1} of ${moves.length}`;
 
   const onGoToBeginning = () => {
-    setViewFen(startFen);
+    setViewMoveIndex?.(-1);
   };
 
   const onPreviousMove = () => {
@@ -23,10 +23,10 @@ export default function MoveHistory({ state, setViewFen, showAnalyzeControls = f
       return;
     }
     if (viewedIndex === 0) {
-      setViewFen(startFen);
+      setViewMoveIndex?.(-1);
       return;
     }
-    setViewFen(selectMoveFen(state, viewedIndex - 1));
+    setViewMoveIndex?.(viewedIndex - 1);
   };
 
   const onNextMove = () => {
@@ -34,13 +34,13 @@ export default function MoveHistory({ state, setViewFen, showAnalyzeControls = f
       return;
     }
     if (viewedIndex < 0) {
-      setViewFen(selectMoveFen(state, 0));
+      setViewMoveIndex?.(0);
       return;
     }
     if (viewedIndex >= moves.length - 1) {
       return;
     }
-    setViewFen(selectMoveFen(state, viewedIndex + 1));
+    setViewMoveIndex?.(viewedIndex + 1);
   };
 
   return (
@@ -66,32 +66,40 @@ export default function MoveHistory({ state, setViewFen, showAnalyzeControls = f
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={onGoToBeginning}
               disabled={!startFen}
+              title="Skip to beginning"
+              aria-label="Skip to beginning"
             >
-              Skip to Beginning
+              ⏮
             </button>
             <button
               type="button"
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={onPreviousMove}
               disabled={moves.length === 0 || viewedIndex < 0}
+              title="Previous move"
+              aria-label="Previous move"
             >
-              Previous Move
+              ◀
             </button>
             <button
               type="button"
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
               onClick={onNextMove}
               disabled={moves.length === 0 || viewedIndex >= moves.length - 1}
+              title="Next move"
+              aria-label="Next move"
             >
-              Next Move
+              ▶
             </button>
             <button
               type="button"
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
-              onClick={() => setViewFen(null)}
+              onClick={() => setViewMoveIndex?.(null)}
               disabled={atCurrentPosition}
+              title="Current position"
+              aria-label="Current position"
             >
-              Current Position
+              ⏭
             </button>
           </div>
           <p className="text-xs font-semibold text-slate-500">{movePositionLabel}</p>
@@ -108,7 +116,7 @@ export default function MoveHistory({ state, setViewFen, showAnalyzeControls = f
             key={`${move.move_number}-${move.color}-${index}`}
             type="button"
             className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-white/70"
-            onClick={() => setViewFen(selectMoveFen(state, index))}
+            onClick={() => (setViewMoveIndex ? setViewMoveIndex(index) : setViewFen(selectMoveFen(state, index)))}
           >
             <span className="font-semibold text-slate-700">
               {move.move_number}. {move.san}

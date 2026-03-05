@@ -15,7 +15,7 @@ it("renders move list and classification colors", () => {
     ],
   };
 
-  render(<MoveHistory state={state} setViewFen={() => {}} />);
+  render(<MoveHistory state={state} setViewFen={() => {}} setViewMoveIndex={() => {}} />);
 
   expect(screen.getByText(/1\. e4/i)).toBeInTheDocument();
   expect(screen.getByText(/Best/i)).toBeInTheDocument();
@@ -23,7 +23,9 @@ it("renders move list and classification colors", () => {
 
 it("supports analyze navigation controls", () => {
   const setViewFen = vi.fn();
+  const setViewMoveIndex = vi.fn();
   const state = {
+    viewMoveIndex: 0,
     viewFen: "fen1",
     moveHistory: [
       {
@@ -45,14 +47,21 @@ it("supports analyze navigation controls", () => {
     ],
   };
 
-  render(<MoveHistory state={state} setViewFen={setViewFen} showAnalyzeControls />);
+  render(
+    <MoveHistory
+      state={state}
+      setViewFen={setViewFen}
+      setViewMoveIndex={setViewMoveIndex}
+      showAnalyzeControls
+    />
+  );
 
-  fireEvent.click(screen.getByRole("button", { name: /Previous Move/i }));
-  expect(setViewFen).toHaveBeenCalledWith("start-fen");
+  fireEvent.click(screen.getByRole("button", { name: /Previous move/i }));
+  expect(setViewMoveIndex).toHaveBeenCalledWith(-1);
 
-  fireEvent.click(screen.getByRole("button", { name: /Next Move/i }));
-  expect(setViewFen).toHaveBeenCalledWith("fen2");
+  fireEvent.click(screen.getByRole("button", { name: /Next move/i }));
+  expect(setViewMoveIndex).toHaveBeenCalledWith(1);
 
-  fireEvent.click(screen.getByRole("button", { name: /Current Position/i }));
-  expect(setViewFen).toHaveBeenCalledWith(null);
+  fireEvent.click(screen.getByRole("button", { name: /Current position/i }));
+  expect(setViewMoveIndex).toHaveBeenCalledWith(null);
 });

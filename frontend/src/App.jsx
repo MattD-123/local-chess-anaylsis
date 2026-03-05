@@ -20,6 +20,7 @@ export default function App() {
     resign,
     saveSettings,
     setViewFen,
+    setViewMoveIndex,
     importGamePgn,
     exportGamePgn,
     loadPlayedGame,
@@ -116,7 +117,7 @@ export default function App() {
           <div className="grid min-w-0 gap-4">
             <Board state={state} makeMove={makeMove} />
             <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
-            <MoveHistory state={state} setViewFen={setViewFen} />
+            <MoveHistory state={state} setViewFen={setViewFen} setViewMoveIndex={setViewMoveIndex} />
           </div>
 
           <div className="grid min-w-0 gap-4">
@@ -143,11 +144,16 @@ export default function App() {
           <div className="grid min-w-0 gap-4">
             <Board state={state} makeMove={makeMove} interactive={false} />
             <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
-            <MoveHistory state={state} setViewFen={setViewFen} showAnalyzeControls />
+            <MoveHistory
+              state={state}
+              setViewFen={setViewFen}
+              setViewMoveIndex={setViewMoveIndex}
+              showAnalyzeControls
+            />
           </div>
 
           <div className="grid min-w-0 gap-4">
-            <AnalysisBoard state={state} setViewFen={setViewFen} />
+            <AnalysisBoard state={state} setViewFen={setViewFen} setViewMoveIndex={setViewMoveIndex} />
             <GameLibrary activeGameId={state.gameId} onLoadGame={loadPlayedGame} />
             <OpeningDisplay opening={state.opening} />
           </div>
