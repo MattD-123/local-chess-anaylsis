@@ -71,6 +71,26 @@ class OllamaLocalProvider(LLMProvider):
             async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(f"{self._base_url}/api/tags")
                 response.raise_for_status()
+                payload = response.json()
+
+            models = payload.get("models") or []
+            names: set[str] = set()
+            for item in models:
+                name = (item.get("name") or "").strip()
+                if not name:
+                    continue
+                names.add(name)
+                names.add(name.split(":", 1)[0])
+
+            target = self._model.strip()
+            target_base = target.split(":", 1)[0]
+            if target not in names and target_base not in names:
+                detail = (
+                    f"Configured Ollama model '{self._model}' is not available. "
+                    "Run: ollama pull <model> and update config.yaml."
+                )
+                return "degraded", detail
+
             return "ok", None
         except Exception as exc:
             logger.warning("Ollama health check failed: %s", exc)

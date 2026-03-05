@@ -44,7 +44,7 @@ class PromptBuilder:
             f"- Legal moves available: {context.legal_move_count or 0}\n\n"
             f"{blunder_clause}\n"
             f"{excellent_clause}\n\n"
-            "Give 2-3 sentences of commentary. Be specific about what the move does - threats created, "
+            "Give 1-2 sentences of commentary. Be specific about what the move does - threats created, "
             "pieces activated, weaknesses exploited. Do not be generic. Do not repeat the move notation "
             "back verbatim. Speak naturally as the requested persona."
         )

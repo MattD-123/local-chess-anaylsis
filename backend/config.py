@@ -219,14 +219,20 @@ class ConfigStore:
 
     def load(self) -> AppConfig:
         with self._lock:
-            if not self._config_path.exists():
-                raise FileNotFoundError(f"Config not found at {self._config_path}")
-            raw = yaml.safe_load(self._config_path.read_text(encoding="utf-8")) or {}
+            config_source = self._config_path
+            if not config_source.exists():
+                fallback_path = self._config_path.with_name("config.example.yaml")
+                if fallback_path.exists():
+                    config_source = fallback_path
+                else:
+                    raise FileNotFoundError(f"Config not found at {self._config_path}")
+
+            raw = yaml.safe_load(config_source.read_text(encoding="utf-8")) or {}
             interpolated = resolve_env_placeholders(raw)
             config = AppConfig.model_validate(interpolated)
             self._raw_data = raw
             self._config = config
-            self._last_mtime_ns = self._config_path.stat().st_mtime_ns
+            self._last_mtime_ns = self._config_path.stat().st_mtime_ns if self._config_path.exists() else None
             return config
 
     def _config_file_changed(self) -> bool:

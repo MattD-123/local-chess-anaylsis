@@ -4,10 +4,15 @@ import { selectCommentaryEntries } from "../../providers/GameProvider";
 
 export default function Commentary({ state }) {
   const entries = useMemo(() => selectCommentaryEntries(state), [state]);
-  const bottomRef = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    // Keep scroll behavior scoped to the commentary panel, not the whole page.
+    list.scrollTop = list.scrollHeight;
   }, [entries, state.typing]);
 
   return (
@@ -22,7 +27,7 @@ export default function Commentary({ state }) {
         ) : null}
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1 text-sm text-slate-700">
+      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto pr-1 text-sm text-slate-700">
         {entries.length === 0 ? (
           <p className="text-slate-500">Commentary will stream here as moves are played.</p>
         ) : null}
@@ -38,7 +43,6 @@ export default function Commentary({ state }) {
             <p>{entry.text}</p>
           </article>
         ))}
-        <div ref={bottomRef} />
       </div>
     </section>
   );

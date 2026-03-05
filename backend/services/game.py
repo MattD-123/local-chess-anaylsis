@@ -188,6 +188,14 @@ class GameService:
     def _result_for_resign(player_color: str) -> str:
         return "0-1" if player_color == "white" else "1-0"
 
+    @staticmethod
+    def _terminal_eval_for_result(result: str) -> Evaluation:
+        if result == "1-0":
+            return Evaluation(cp=None, mate=1, normalized_pawns=100.0)
+        if result == "0-1":
+            return Evaluation(cp=None, mate=-1, normalized_pawns=-100.0)
+        return Evaluation(cp=0, mate=0, normalized_pawns=0.0)
+
     def _game_result_from_board(self, board: chess.Board) -> tuple[str, str]:
         outcome = board.outcome(claim_draw=True)
         if outcome is None:
@@ -530,8 +538,10 @@ class GameService:
 
             if session.board.is_game_over(claim_draw=True):
                 result, termination = self._game_result_from_board(session.board)
+                terminal_eval = self._terminal_eval_for_result(result)
+                move_record.eval_after = terminal_eval
                 await self._finalize_game(session, result=result, termination_reason=termination)
-                return self._build_move_response(session, eval_after)
+                return self._build_move_response(session, terminal_eval)
 
             if not session.player_turn():
                 session.engine_thinking = True
@@ -587,6 +597,9 @@ class GameService:
                 fen_after = session.board.fen()
 
                 eval_after = await engine.evaluate_position(fen_after, depth)
+                if session.board.is_game_over(claim_draw=True):
+                    result, _ = self._game_result_from_board(session.board)
+                    eval_after = self._terminal_eval_for_result(result)
                 if color == "white":
                     eval_gain = eval_after.normalized_pawns - eval_before.normalized_pawns
                 else:

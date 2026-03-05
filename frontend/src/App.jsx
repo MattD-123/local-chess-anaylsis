@@ -23,6 +23,7 @@ export default function App() {
     exportGamePgn,
   } = useGame();
   const [dismissedGameOverFor, setDismissedGameOverFor] = useState(null);
+  const [activeSection, setActiveSection] = useState("play");
 
   useEffect(() => {
     setDismissedGameOverFor(null);
@@ -71,6 +72,31 @@ export default function App() {
         </div>
       </header>
 
+      <section className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            activeSection === "play"
+              ? "bg-ink text-white"
+              : "border border-slate-400 bg-white/70 text-slate-700"
+          }`}
+          onClick={() => setActiveSection("play")}
+        >
+          Play
+        </button>
+        <button
+          type="button"
+          className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+            activeSection === "analyze"
+              ? "bg-ink text-white"
+              : "border border-slate-400 bg-white/70 text-slate-700"
+          }`}
+          onClick={() => setActiveSection("analyze")}
+        >
+          Analyze
+        </button>
+      </section>
+
       {state.health && (state.health.engine.status !== "ok" || state.health.llm.status !== "ok" || state.health.openings.status !== "ok") ? (
         <aside className="mb-4 rounded-xl border border-amber-300 bg-amber-100/70 px-4 py-2 text-sm text-amber-900">
           <strong>Provider warning:</strong> engine={state.health.engine.status}, llm={state.health.llm.status}, openings={state.health.openings.status}
@@ -81,33 +107,49 @@ export default function App() {
         <aside className="mb-4 rounded-xl border border-red-300 bg-red-100/70 px-4 py-2 text-sm text-red-900">{state.error}</aside>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[90px_minmax(0,1fr)_360px]">
-        <EvalBar evaluation={state.currentEval} />
+      {activeSection === "play" ? (
+        <section className="grid gap-4 lg:grid-cols-[90px_minmax(0,1fr)_360px]">
+          <EvalBar evaluation={state.currentEval} />
 
-        <div className="grid gap-4">
-          <Board state={state} makeMove={makeMove} />
-          <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
-          <MoveHistory state={state} setViewFen={setViewFen} />
-          <AnalysisBoard state={state} setViewFen={setViewFen} />
-        </div>
+          <div className="grid gap-4">
+            <Board state={state} makeMove={makeMove} />
+            <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
+            <MoveHistory state={state} setViewFen={setViewFen} />
+          </div>
 
-        <div className="grid gap-4">
-          <OpeningDisplay opening={state.opening} />
-          <Commentary state={state} />
-          <Settings
-            config={state.config}
-            gameOptions={state.gameOptions}
-            saveSettings={saveSettings}
-            requestHint={requestHint}
-            resign={resign}
-            hint={state.hint}
-            gameId={state.gameId}
-            playerColor={state.playerColor}
-            importGamePgn={importGamePgn}
-            exportGamePgn={exportGamePgn}
-          />
-        </div>
-      </section>
+          <div className="grid gap-4">
+            <OpeningDisplay opening={state.opening} />
+            <Commentary state={state} />
+            <Settings
+              config={state.config}
+              gameOptions={state.gameOptions}
+              saveSettings={saveSettings}
+              requestHint={requestHint}
+              resign={resign}
+              hint={state.hint}
+              gameId={state.gameId}
+              playerColor={state.playerColor}
+              importGamePgn={importGamePgn}
+              exportGamePgn={exportGamePgn}
+            />
+          </div>
+        </section>
+      ) : (
+        <section className="grid gap-4 lg:grid-cols-[90px_minmax(360px,520px)_minmax(0,1fr)]">
+          <EvalBar evaluation={state.currentEval} />
+
+          <div className="grid gap-4">
+            <Board state={state} makeMove={makeMove} interactive={false} />
+            <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
+            <MoveHistory state={state} setViewFen={setViewFen} />
+          </div>
+
+          <div className="grid gap-4">
+            <AnalysisBoard state={state} setViewFen={setViewFen} />
+            <OpeningDisplay opening={state.opening} />
+          </div>
+        </section>
+      )}
 
       {state.gameOver ? (
         <footer className="mt-4 rounded-xl border border-slate-300 bg-white/70 px-4 py-2 text-sm text-slate-700">

@@ -29,6 +29,7 @@ pnpm-debug.log*
 *.sqlite
 *.sqlite3
 *.log
+config.yaml
 .env
 .env.*
 !.env.example

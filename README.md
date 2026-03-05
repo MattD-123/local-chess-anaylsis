@@ -10,6 +10,8 @@ An interactive full-stack chess app with:
 - PGN import/export tooling
 - Interactive analysis board with eval graph and blunder review mode
 - Runtime settings via API-backed config
+- Dedicated `Play` and `Analyze` sections in the UI
+- Analyze mode includes estimated accuracy and rating per side
 
 ## Tech Stack
 
@@ -22,7 +24,7 @@ An interactive full-stack chess app with:
 ```text
 backend/     FastAPI API, game services, providers, database layer, tests
 frontend/    React UI, state provider, board and commentary components
-config.yaml  Runtime-editable app configuration
+config.example.yaml  Template runtime configuration
 ```
 
 ## Prerequisites
@@ -35,6 +37,12 @@ config.yaml  Runtime-editable app configuration
 ## Quick Start
 
 ### 1) Configure
+
+Copy and edit a local config file:
+
+```powershell
+Copy-Item .\config.example.yaml .\config.yaml
+```
 
 Edit `config.yaml`:
 

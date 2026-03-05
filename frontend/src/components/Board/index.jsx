@@ -11,7 +11,7 @@ function uciToSquares(uci) {
   return [uci.slice(0, 2), uci.slice(2, 4)];
 }
 
-export default function Board({ state, makeMove }) {
+export default function Board({ state, makeMove, interactive = true }) {
   const [selectedSquare, setSelectedSquare] = useState(null);
   const [legalTargets, setLegalTargets] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -37,7 +37,7 @@ export default function Board({ state, makeMove }) {
     return turn === "b";
   }, [board, state.playerColor]);
 
-  const canMovePieces = liveBoard && !state.gameOver && !submitting && isPlayerTurn;
+  const canMovePieces = interactive && liveBoard && !state.gameOver && !submitting && isPlayerTurn;
 
   const applyMoveOptimistically = (from, to, promotion = "q") => {
     const next = new Chess();
@@ -180,6 +180,11 @@ export default function Board({ state, makeMove }) {
       {!liveBoard ? (
         <p className="mb-3 rounded-md border border-slate-300 bg-white/70 px-2 py-1 text-xs text-slate-600">
           Viewing a past position. Click "Live Position" in Move History to play moves.
+        </p>
+      ) : null}
+      {interactive === false ? (
+        <p className="mb-3 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 text-xs text-blue-900">
+          Analyze mode: board is read-only. Select moves below to review positions.
         </p>
       ) : null}
 

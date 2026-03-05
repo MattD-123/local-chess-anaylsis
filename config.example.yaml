@@ -1,4 +1,4 @@
-engine:
+﻿engine:
   provider: local
   local:
     path: /path/to/stockfish
