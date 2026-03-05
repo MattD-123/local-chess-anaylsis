@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 
+import { selectViewedMoveIndex } from "../../providers/GameProvider";
+
 const GRAPH_WIDTH = 560;
 const GRAPH_HEIGHT = 180;
 const GRAPH_PADDING = 18;
@@ -115,30 +117,45 @@ function sideMetrics(moves, side) {
 
 export default function AnalysisBoard({ state, setViewFen }) {
   const [showOnlyBlunders, setShowOnlyBlunders] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(null);
   const moves = state.moveHistory || [];
+  const viewedIndex = selectViewedMoveIndex(state);
+  const isCurrentPosition = state.viewFen == null;
+
+  const movesAtViewedMoment = useMemo(() => {
+    if (moves.length === 0) {
+      return [];
+    }
+    if (isCurrentPosition) {
+      return moves;
+    }
+    if (viewedIndex < 0) {
+      return [];
+    }
+    return moves.slice(0, viewedIndex + 1);
+  }, [isCurrentPosition, moves, viewedIndex]);
 
   const points = useMemo(() => {
-    if (moves.length === 0) {
+    if (movesAtViewedMoment.length === 0) {
       return [];
     }
     const innerWidth = GRAPH_WIDTH - GRAPH_PADDING * 2;
     const innerHeight = GRAPH_HEIGHT - GRAPH_PADDING * 2;
-    return moves.map((move, index) => {
+    return movesAtViewedMoment.map((move, index) => {
       const x =
-        moves.length <= 1
+        movesAtViewedMoment.length <= 1
           ? GRAPH_WIDTH / 2
-          : GRAPH_PADDING + (innerWidth * index) / (moves.length - 1);
+          : GRAPH_PADDING + (innerWidth * index) / (movesAtViewedMoment.length - 1);
       const evalValue = clampEval(move?.eval_after?.normalized_pawns ?? 0);
       const y = GRAPH_PADDING + ((MAX_EVAL - evalValue) / (MAX_EVAL * 2)) * innerHeight;
       return { x, y, evalValue };
     });
-  }, [moves]);
+  }, [movesAtViewedMoment]);
 
   const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const selectedMove = selectedIndex != null ? moves[selectedIndex] : null;
-  const whiteMetrics = useMemo(() => sideMetrics(moves, "white"), [moves]);
-  const blackMetrics = useMemo(() => sideMetrics(moves, "black"), [moves]);
+  const selectedMove = viewedIndex >= 0 ? moves[viewedIndex] : null;
+  const selectedPointIndex = points.length - 1;
+  const whiteMetrics = useMemo(() => sideMetrics(movesAtViewedMoment, "white"), [movesAtViewedMoment]);
+  const blackMetrics = useMemo(() => sideMetrics(movesAtViewedMoment, "black"), [movesAtViewedMoment]);
   const userMetrics = state.playerColor === "black" ? blackMetrics : whiteMetrics;
 
   const reviewMoves = useMemo(() => {
@@ -147,13 +164,12 @@ export default function AnalysisBoard({ state, setViewFen }) {
       return label === "inaccuracy" || label === "mistake" || label === "blunder";
     };
     if (!showOnlyBlunders) {
-      return moves;
+      return movesAtViewedMoment;
     }
-    return moves.filter(isReviewMove);
-  }, [moves, showOnlyBlunders]);
+    return movesAtViewedMoment.filter(isReviewMove);
+  }, [movesAtViewedMoment, showOnlyBlunders]);
 
-  const onSelectMove = (move, index) => {
-    setSelectedIndex(index);
+  const onSelectMove = (move) => {
     setViewFen(move.fen_after);
   };
 
@@ -165,6 +181,13 @@ export default function AnalysisBoard({ state, setViewFen }) {
           Player Accuracy: {userMetrics.accuracy.toFixed(1)}%
         </span>
       </div>
+      <p className="mb-3 text-xs font-semibold text-slate-500">
+        {isCurrentPosition
+          ? `Showing analysis at current position (move ${moves.length})`
+          : viewedIndex < 0
+            ? "Showing analysis at game start"
+            : `Showing analysis through move ${viewedIndex + 1}`}
+      </p>
 
       <div className="mb-3 grid gap-2 md:grid-cols-2">
         <article className="rounded-xl border border-slate-300 bg-white/85 p-3">
@@ -188,7 +211,7 @@ export default function AnalysisBoard({ state, setViewFen }) {
         <MetricPill label="Blunders" value={userMetrics.counts.blunder} tone="blunder" />
       </div>
 
-      {moves.length === 0 ? (
+      {movesAtViewedMoment.length === 0 ? (
         <p className="text-sm text-slate-500">Play or import a game to see evaluation trends.</p>
       ) : (
         <div className="min-w-0 rounded-xl border border-slate-300 bg-white/80 p-2">
@@ -212,10 +235,10 @@ export default function AnalysisBoard({ state, setViewFen }) {
                 key={`pt-${index}`}
                 cx={point.x}
                 cy={point.y}
-                r={selectedIndex === index ? 5 : 3.5}
-                fill={selectedIndex === index ? "#0f172a" : classColor(moves[index])}
+                r={selectedPointIndex === index ? 5 : 3.5}
+                fill={selectedPointIndex === index ? "#0f172a" : classColor(movesAtViewedMoment[index])}
                 className="cursor-pointer"
-                onClick={() => onSelectMove(moves[index], index)}
+                onClick={() => onSelectMove(movesAtViewedMoment[index])}
               />
             ))}
           </svg>
@@ -238,13 +261,12 @@ export default function AnalysisBoard({ state, setViewFen }) {
           <p className="text-slate-500">No inaccuracies, mistakes, or blunders yet.</p>
         ) : (
           reviewMoves.map((move) => {
-            const index = moves.indexOf(move);
             return (
               <button
-                key={`${move.move_number}-${move.color}-${index}`}
+                key={`${move.move_number}-${move.color}-${move.fen_after}`}
                 type="button"
                 className="flex w-full items-center justify-between rounded-md border border-slate-200 bg-white/70 px-2 py-1 text-left hover:bg-white"
-                onClick={() => onSelectMove(move, index)}
+                onClick={() => onSelectMove(move)}
               >
                 <span className="font-semibold text-slate-700">
                   {move.move_number}. {move.san} ({move.color})

@@ -337,6 +337,28 @@ export function selectMoveFen(state, index) {
   return state.moveHistory[index].fen_after;
 }
 
+export function selectViewedMoveIndex(state) {
+  const moves = state.moveHistory || [];
+  if (moves.length === 0) {
+    return -1;
+  }
+  if (!state.viewFen) {
+    return moves.length - 1;
+  }
+
+  const startFen = moves[0]?.fen_before || null;
+  if (state.viewFen === startFen) {
+    return -1;
+  }
+
+  for (let index = moves.length - 1; index >= 0; index -= 1) {
+    if (moves[index].fen_after === state.viewFen) {
+      return index;
+    }
+  }
+  return moves.length - 1;
+}
+
 export function selectCommentaryEntries(state) {
   const finished = state.commentaryHistory;
   const drafts = Object.entries(state.commentaryDrafts).map(([key, text]) => ({

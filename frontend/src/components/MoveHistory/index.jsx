@@ -1,33 +1,10 @@
 import React from "react";
 
-import { moveClassToColor, selectMoveFen } from "../../providers/GameProvider";
-
-function findViewedMoveIndex(state) {
-  const moves = state.moveHistory || [];
-  if (moves.length === 0) {
-    return -1;
-  }
-  if (!state.viewFen) {
-    return moves.length - 1;
-  }
-
-  const startFen = moves[0]?.fen_before || null;
-  if (state.viewFen === startFen) {
-    return -1;
-  }
-
-  let foundIndex = -1;
-  for (let index = 0; index < moves.length; index += 1) {
-    if (moves[index].fen_after === state.viewFen) {
-      foundIndex = index;
-    }
-  }
-  return foundIndex;
-}
+import { moveClassToColor, selectMoveFen, selectViewedMoveIndex } from "../../providers/GameProvider";
 
 export default function MoveHistory({ state, setViewFen, showAnalyzeControls = false }) {
   const moves = state.moveHistory || [];
-  const viewedIndex = findViewedMoveIndex(state);
+  const viewedIndex = selectViewedMoveIndex(state);
   const startFen = moves[0]?.fen_before || null;
   const atCurrentPosition = state.viewFen == null;
 

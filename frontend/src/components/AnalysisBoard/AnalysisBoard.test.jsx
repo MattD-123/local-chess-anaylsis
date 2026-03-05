@@ -4,6 +4,7 @@ import AnalysisBoard from "./index";
 
 const baseState = {
   playerColor: "white",
+  viewFen: null,
   moveHistory: [
     {
       move_number: 1,
@@ -33,10 +34,10 @@ it("filters to review moves and selects a move for board jump", () => {
   render(<AnalysisBoard state={baseState} setViewFen={setViewFen} />);
 
   fireEvent.click(screen.getByLabelText(/Blunder Review Mode/i));
-  expect(screen.queryByText(/1\. e4/i)).not.toBeInTheDocument();
-  expect(screen.getByText(/1\. e5/i)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /1\.\s*e4/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /1\.\s*e5/i })).toBeInTheDocument();
 
-  fireEvent.click(screen.getByText(/1\. e5/i));
+  fireEvent.click(screen.getByRole("button", { name: /1\.\s*e5/i }));
   expect(setViewFen).toHaveBeenCalledWith("fen-2");
   expect(screen.getByText(/Best move suggestion:/i)).toBeInTheDocument();
 });
@@ -44,12 +45,13 @@ it("filters to review moves and selects a move for board jump", () => {
 it("refreshes analysis view when state changes between sessions", () => {
   const setViewFen = vi.fn();
   const { rerender } = render(<AnalysisBoard state={baseState} setViewFen={setViewFen} />);
-  expect(screen.getByText(/1\. e4/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /1\.\s*e4/i })).toBeInTheDocument();
 
   rerender(
     <AnalysisBoard
       state={{
         playerColor: "black",
+        viewFen: null,
         moveHistory: [
           {
             move_number: 1,
@@ -67,6 +69,23 @@ it("refreshes analysis view when state changes between sessions", () => {
     />
   );
 
-  expect(screen.queryByText(/1\. e4/i)).not.toBeInTheDocument();
-  expect(screen.getByText(/1\. d4/i)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /1\.\s*e4/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /1\.\s*d4/i })).toBeInTheDocument();
+});
+
+it("shows analysis at the currently viewed move", () => {
+  const setViewFen = vi.fn();
+  render(
+    <AnalysisBoard
+      state={{
+        ...baseState,
+        viewFen: "fen-1",
+      }}
+      setViewFen={setViewFen}
+    />
+  );
+
+  expect(screen.getByText(/Showing analysis through move 1/i)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /1\.\s*e5/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /1\.\s*e4/i })).toBeInTheDocument();
 });
