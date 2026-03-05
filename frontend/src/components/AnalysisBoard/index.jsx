@@ -158,7 +158,7 @@ export default function AnalysisBoard({ state, setViewFen }) {
   };
 
   return (
-    <section className="panel rounded-2xl p-4 md:p-5">
+    <section className="panel min-w-0 rounded-2xl p-4 md:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-heading text-base font-bold text-ink md:text-lg">Game Review</h3>
         <span className="rounded-md border border-slate-300 bg-white/75 px-2 py-1 text-xs font-semibold text-slate-700">
@@ -191,8 +191,12 @@ export default function AnalysisBoard({ state, setViewFen }) {
       {moves.length === 0 ? (
         <p className="text-sm text-slate-500">Play or import a game to see evaluation trends.</p>
       ) : (
-        <div className="rounded-xl border border-slate-300 bg-white/80 p-2">
-          <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} className="h-44 w-full">
+        <div className="min-w-0 rounded-xl border border-slate-300 bg-white/80 p-2">
+          <svg
+            viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
+            className="h-44 w-full max-w-full"
+            preserveAspectRatio="xMidYMid meet"
+          >
             <line
               x1={GRAPH_PADDING}
               y1={GRAPH_HEIGHT / 2}

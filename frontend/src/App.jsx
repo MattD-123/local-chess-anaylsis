@@ -111,13 +111,13 @@ export default function App() {
         <section className="grid gap-4 lg:grid-cols-[90px_minmax(0,1fr)_360px]">
           <EvalBar evaluation={state.currentEval} />
 
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <Board state={state} makeMove={makeMove} />
             <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
             <MoveHistory state={state} setViewFen={setViewFen} />
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <OpeningDisplay opening={state.opening} />
             <Commentary state={state} />
             <Settings
@@ -138,13 +138,13 @@ export default function App() {
         <section className="grid gap-4 lg:grid-cols-[90px_minmax(360px,520px)_minmax(0,1fr)]">
           <EvalBar evaluation={state.currentEval} />
 
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <Board state={state} makeMove={makeMove} interactive={false} />
             <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
-            <MoveHistory state={state} setViewFen={setViewFen} />
+            <MoveHistory state={state} setViewFen={setViewFen} showAnalyzeControls />
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             <AnalysisBoard state={state} setViewFen={setViewFen} />
             <OpeningDisplay opening={state.opening} />
           </div>

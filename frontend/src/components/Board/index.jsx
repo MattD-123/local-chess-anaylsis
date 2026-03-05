@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
 
@@ -16,6 +16,8 @@ export default function Board({ state, makeMove, interactive = true }) {
   const [legalTargets, setLegalTargets] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [optimisticFen, setOptimisticFen] = useState(null);
+  const [boardWidth, setBoardWidth] = useState(560);
+  const containerRef = useRef(null);
 
   const position = optimisticFen || selectDisplayedFen(state);
   const liveBoard = state.viewFen == null;
@@ -130,6 +132,34 @@ export default function Board({ state, makeMove, interactive = true }) {
     }
   }, [optimisticFen, state.fen, submitting]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return undefined;
+    }
+
+    const updateWidth = () => {
+      const width = container.getBoundingClientRect().width || 0;
+      if (width > 0) {
+        setBoardWidth(Math.floor(Math.min(width, 620)));
+      }
+    };
+
+    updateWidth();
+
+    let observer;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateWidth);
+      observer.observe(container);
+    }
+
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      observer?.disconnect();
+    };
+  }, []);
+
   const lastMove = state.moveHistory[state.moveHistory.length - 1];
   const [lastFrom, lastTo] = uciToSquares(lastMove?.uci);
   const analysisMove = state.viewFen
@@ -167,7 +197,7 @@ export default function Board({ state, makeMove, interactive = true }) {
   const customArrows = bestFrom && bestTo ? [[bestFrom, bestTo, "rgba(29, 78, 216, 0.72)"]] : [];
 
   return (
-    <section className="panel rounded-2xl p-4 md:p-5">
+    <section className="panel overflow-hidden rounded-2xl p-4 md:p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-heading text-lg font-bold text-ink">Board</h2>
         {state.engineThinking && !isPlayerTurn ? (
@@ -188,11 +218,12 @@ export default function Board({ state, makeMove, interactive = true }) {
         </p>
       ) : null}
 
-      <div className="relative mx-auto max-w-[620px]">
+      <div ref={containerRef} className="relative mx-auto w-full max-w-[620px]">
         <Chessboard
           id="main-board"
           boardOrientation={state.playerColor || "white"}
           position={position}
+          boardWidth={boardWidth}
           arePiecesDraggable={canMovePieces}
           onPieceDrop={onPieceDrop}
           onSquareClick={onSquareClick}
