@@ -27,3 +27,8 @@ commentary:
   always_comment_on_blunders: true
   always_comment_on_engine_moves: true
   persona: coach
+
+runtime:
+  max_active_sessions: 100
+  session_ttl_hours: 6
+  cleanup_interval_seconds: 300

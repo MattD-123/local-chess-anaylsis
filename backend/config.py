@@ -129,10 +129,40 @@ class CommentaryConfig(BaseModel):
         return value
 
 
+class RuntimeConfig(BaseModel):
+    max_active_sessions: int = 100
+    session_ttl_hours: int = 6
+    cleanup_interval_seconds: int = 300
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("max_active_sessions")
+    @classmethod
+    def validate_max_active_sessions(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("runtime.max_active_sessions must be > 0")
+        return value
+
+    @field_validator("session_ttl_hours")
+    @classmethod
+    def validate_session_ttl_hours(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("runtime.session_ttl_hours must be > 0")
+        return value
+
+    @field_validator("cleanup_interval_seconds")
+    @classmethod
+    def validate_cleanup_interval_seconds(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("runtime.cleanup_interval_seconds must be > 0")
+        return value
+
+
 class AppConfig(BaseModel):
     engine: EngineConfig
     llm: LLMConfig
     commentary: CommentaryConfig = Field(default_factory=CommentaryConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
 
     model_config = ConfigDict(extra="forbid")
 

@@ -75,6 +75,7 @@ async def lifespan(app: FastAPI):
         opening_service=openings_service,
         commentary_bus=commentary_bus,
     )
+    await game_service.start()
     analysis_service = AnalysisService(repo=repo, llm_router=llm_router)
     health_service = HealthService(
         config_store=config_store,
@@ -95,6 +96,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await game_service.stop()
         await engine_router.close()
 
 

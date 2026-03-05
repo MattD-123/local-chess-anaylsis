@@ -5,7 +5,7 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import chess
 import chess.pgn
@@ -47,6 +47,7 @@ class GameSession:
     result: str | None = None
     termination_reason: str | None = None
     engine_thinking: bool = False
+    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def player_turn(self) -> bool:
@@ -76,6 +77,7 @@ class GameService:
         self._opening_service = opening_service
         self._commentary_bus = commentary_bus
         self._sessions: dict[str, GameSession] = {}
+        self._cleanup_task: asyncio.Task | None = None
 
     def _default_game_options(self) -> GameOptions:
         config = self._config_store.get()
@@ -92,6 +94,58 @@ class GameService:
             return base.model_copy(deep=True)
         payload = patch.model_dump(exclude_none=True)
         return base.model_copy(update=payload)
+
+    @staticmethod
+    def _touch(session: GameSession) -> None:
+        session.last_activity = datetime.now(timezone.utc)
+
+    def _max_sessions(self) -> int:
+        return self._config_store.get().runtime.max_active_sessions
+
+    def _session_ttl(self) -> timedelta:
+        return timedelta(hours=self._config_store.get().runtime.session_ttl_hours)
+
+    def _cleanup_interval_seconds(self) -> int:
+        return self._config_store.get().runtime.cleanup_interval_seconds
+
+    def _check_capacity_or_raise(self) -> None:
+        if len(self._sessions) >= self._max_sessions():
+            raise ValueError("Maximum active sessions reached. Please try again later.")
+
+    async def start(self) -> None:
+        if self._cleanup_task and not self._cleanup_task.done():
+            return
+        self._cleanup_task = asyncio.create_task(self._session_cleanup_loop())
+
+    async def stop(self) -> None:
+        if self._cleanup_task is None:
+            return
+        self._cleanup_task.cancel()
+        try:
+            await self._cleanup_task
+        except asyncio.CancelledError:
+            pass
+        self._cleanup_task = None
+
+    async def _session_cleanup_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self._cleanup_interval_seconds())
+            try:
+                self._cleanup_stale_sessions()
+            except Exception:
+                logger.exception("Session cleanup loop failed")
+
+    def _cleanup_stale_sessions(self) -> None:
+        now = datetime.now(timezone.utc)
+        ttl = self._session_ttl()
+        stale_ids = [
+            game_id
+            for game_id, session in self._sessions.items()
+            if now - session.last_activity > ttl
+        ]
+        for game_id in stale_ids:
+            self._sessions.pop(game_id, None)
+            self._commentary_bus.close_game(game_id)
 
     def _classify_eval_loss(self, eval_loss: float, legal_move_count: int) -> str:
         if legal_move_count <= 1:
@@ -178,9 +232,11 @@ class GameService:
         if config_overrides:
             self._config_store.update(config_overrides)
 
+        self._check_capacity_or_raise()
         options = self._merge_game_options(self._default_game_options(), options_patch)
         game_id = str(uuid.uuid4())
         session = GameSession(game_id=game_id, player_color=player_color, options=options)
+        self._touch(session)
         self._sessions[game_id] = session
 
         self._repo.create_game(game_id, player_color, options.skill_level)
@@ -207,9 +263,11 @@ class GameService:
         if parsed is None:
             raise ValueError("Unable to parse PGN")
 
+        self._check_capacity_or_raise()
         options = self._default_game_options()
         game_id = str(uuid.uuid4())
         session = GameSession(game_id=game_id, player_color=player_color, options=options)
+        self._touch(session)
         self._sessions[game_id] = session
         self._repo.create_game(game_id, player_color, options.skill_level)
         self._commentary_bus.ensure_game(game_id)
@@ -311,11 +369,13 @@ class GameService:
         session = self._sessions.get(game_id)
         if session is None:
             raise ValueError("Game not found")
+        self._touch(session)
         return session
 
     async def update_game_settings(self, game_id: str, patch: GameOptionsPatch) -> GameSettingsResponse:
         session = self._get_session(game_id)
         session.options = self._merge_game_options(session.options, patch)
+        self._touch(session)
         return GameSettingsResponse(game_id=game_id, options=session.options)
 
     @staticmethod
@@ -382,11 +442,23 @@ class GameService:
             fen_after = session.board.fen()
 
             eval_after_task = asyncio.create_task(engine.evaluate_position(fen_after, depth))
-            eval_before, top_moves, eval_after = await asyncio.gather(
-                eval_before_task,
-                top_moves_task,
-                eval_after_task,
-            )
+            try:
+                eval_before, top_moves, eval_after = await asyncio.gather(
+                    eval_before_task,
+                    top_moves_task,
+                    eval_after_task,
+                )
+            except TimeoutError as exc:
+                for task in (eval_before_task, top_moves_task, eval_after_task):
+                    task.cancel()
+                if session.board.move_stack and session.board.peek() == move:
+                    session.board.pop()
+                await self._commentary_bus.publish(
+                    session.game_id,
+                    "error",
+                    {"message": "Engine queue is busy. Please retry your move."},
+                )
+                raise ValueError("Engine queue is busy. Please retry your move.") from exc
 
             best_move = top_moves[0] if top_moves else None
             eval_loss = self._compute_player_eval_loss(session.player_color, eval_before, eval_after)
@@ -465,6 +537,7 @@ class GameService:
                 session.engine_thinking = True
                 asyncio.create_task(self._run_engine_turn(session))
 
+            self._touch(session)
             return self._build_move_response(session, eval_after)
 
     async def _run_engine_turn(self, session: GameSession) -> None:
@@ -574,6 +647,14 @@ class GameService:
                     result, termination = self._game_result_from_board(session.board)
                     await self._finalize_game(session, result=result, termination_reason=termination)
 
+                self._touch(session)
+
+        except TimeoutError:
+            await self._commentary_bus.publish(
+                session.game_id,
+                "error",
+                {"message": "Engine queue timeout while computing bot move."},
+            )
         except Exception as exc:
             logger.exception("Engine turn failed for game %s", session.game_id)
             await self._commentary_bus.publish(
@@ -670,6 +751,7 @@ class GameService:
         session.game_over = True
         session.result = result
         session.termination_reason = termination_reason
+        self._touch(session)
 
         game = chess.pgn.Game.from_board(session.board)
         pgn = str(game)
