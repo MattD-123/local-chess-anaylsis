@@ -9,7 +9,7 @@ import {
   newGame,
   resignGame,
   submitMove,
-  updateConfig,
+  updateGameSettings,
 } from "../api/client";
 import { useGameStream } from "../hooks/useGameStream";
 
@@ -32,6 +32,7 @@ const initialState = {
   terminationReason: null,
   config: null,
   health: null,
+  gameOptions: null,
   hint: null,
   error: null,
 };
@@ -43,7 +44,19 @@ function keyForMove(move) {
 function reducer(state, action) {
   switch (action.type) {
     case "SET_CONFIG":
-      return { ...state, config: action.payload };
+      return {
+        ...state,
+        config: action.payload,
+        gameOptions:
+          state.gameOptions ||
+          {
+            skill_level: action.payload.engine.local.skill_level,
+            depth: action.payload.engine.local.depth,
+            think_time_ms: action.payload.engine.local.think_time_ms,
+            artificial_delay_enabled: action.payload.engine.local.artificial_delay.enabled,
+            persona: action.payload.commentary.persona,
+          },
+      };
     case "SET_HEALTH":
       return { ...state, health: action.payload };
     case "NEW_GAME":
@@ -59,6 +72,7 @@ function reducer(state, action) {
         commentaryHistory: [],
         typing: false,
         engineThinking: action.payload.engine_to_move,
+        gameOptions: action.payload.options || state.gameOptions,
         gameOver: false,
         result: null,
         terminationReason: null,
@@ -92,6 +106,7 @@ function reducer(state, action) {
         commentaryHistory: [],
         typing: false,
         engineThinking: false,
+        gameOptions: action.payload.options || state.gameOptions,
         gameOver: Boolean(action.payload.game_over),
         result: action.payload.result || null,
         terminationReason: action.payload.termination_reason || null,
@@ -154,6 +169,8 @@ function reducer(state, action) {
       };
     case "SET_HINT":
       return { ...state, hint: action.payload };
+    case "SET_GAME_OPTIONS":
+      return { ...state, gameOptions: action.payload };
     case "SET_ERROR":
       return { ...state, error: action.payload };
     case "SET_VIEW_FEN":
@@ -222,11 +239,20 @@ export function GameProvider({ children }) {
     return result;
   }, [state.gameId]);
 
-  const saveSettings = useCallback(async (patch) => {
-    const result = await updateConfig(patch);
-    dispatch({ type: "SET_CONFIG", payload: result.config });
-    return result.config;
-  }, []);
+  const saveSettings = useCallback(
+    async (optionsPatch) => {
+      if (!state.gameId) {
+        throw new Error("Start a game before changing per-game settings.");
+      }
+      const result = await updateGameSettings({
+        game_id: state.gameId,
+        options: optionsPatch,
+      });
+      dispatch({ type: "SET_GAME_OPTIONS", payload: result.options });
+      return result.options;
+    },
+    [state.gameId]
+  );
 
   const setViewFen = useCallback((fen) => {
     dispatch({ type: "SET_VIEW_FEN", payload: fen });

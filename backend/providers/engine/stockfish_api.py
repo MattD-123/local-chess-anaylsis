@@ -74,7 +74,13 @@ class StockfishAPIProvider(ChessEngine):
             )
         return candidates
 
-    async def get_best_move(self, fen: str, skill_level: int, depth: int) -> MoveCandidate:
+    async def get_best_move(
+        self,
+        fen: str,
+        skill_level: int,
+        depth: int,
+        think_time_ms: int | None = None,
+    ) -> MoveCandidate:
         top = await self.get_top_moves(fen, n=3, depth=depth)
         if not top:
             raise RuntimeError("No best move returned from cloud engine")

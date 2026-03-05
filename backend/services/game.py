@@ -15,6 +15,9 @@ from database.repo import ChessRepository
 from providers.engine.router import EngineRouter
 from providers.llm.router import LLMRouter
 from schemas.api import (
+    GameOptions,
+    GameOptionsPatch,
+    GameSettingsResponse,
     HistoryItem,
     HistoryResponse,
     HintResponse,
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 class GameSession:
     game_id: str
     player_color: str
+    options: GameOptions
     board: chess.Board = field(default_factory=chess.Board)
     move_history: list[MoveRecord] = field(default_factory=list)
     opening: OpeningInfo | None = None
@@ -72,6 +76,22 @@ class GameService:
         self._opening_service = opening_service
         self._commentary_bus = commentary_bus
         self._sessions: dict[str, GameSession] = {}
+
+    def _default_game_options(self) -> GameOptions:
+        config = self._config_store.get()
+        return GameOptions(
+            skill_level=config.engine.local.skill_level,
+            depth=config.engine.local.depth,
+            think_time_ms=config.engine.local.think_time_ms,
+            artificial_delay_enabled=config.engine.local.artificial_delay.enabled,
+            persona=config.commentary.persona,
+        )
+
+    def _merge_game_options(self, base: GameOptions, patch: GameOptionsPatch | None) -> GameOptions:
+        if patch is None:
+            return base.model_copy(deep=True)
+        payload = patch.model_dump(exclude_none=True)
+        return base.model_copy(update=payload)
 
     def _classify_eval_loss(self, eval_loss: float, legal_move_count: int) -> str:
         if legal_move_count <= 1:
@@ -149,16 +169,21 @@ class GameService:
             engine_thinking=session.engine_thinking,
         )
 
-    async def new_game(self, player_color: str, config_overrides: dict | None = None) -> NewGameResponse:
+    async def new_game(
+        self,
+        player_color: str,
+        config_overrides: dict | None = None,
+        options_patch: GameOptionsPatch | None = None,
+    ) -> NewGameResponse:
         if config_overrides:
             self._config_store.update(config_overrides)
 
-        config = self._config_store.get()
+        options = self._merge_game_options(self._default_game_options(), options_patch)
         game_id = str(uuid.uuid4())
-        session = GameSession(game_id=game_id, player_color=player_color)
+        session = GameSession(game_id=game_id, player_color=player_color, options=options)
         self._sessions[game_id] = session
 
-        self._repo.create_game(game_id, player_color, config.engine.local.skill_level)
+        self._repo.create_game(game_id, player_color, options.skill_level)
         self._commentary_bus.ensure_game(game_id)
 
         if not session.player_turn():
@@ -170,6 +195,7 @@ class GameService:
             fen=session.board.fen(),
             player_color=player_color,
             engine_to_move=not session.player_turn(),
+            options=session.options,
         )
 
     async def import_pgn(self, pgn_text: str, player_color: str) -> PgnImportResponse:
@@ -181,15 +207,15 @@ class GameService:
         if parsed is None:
             raise ValueError("Unable to parse PGN")
 
-        config = self._config_store.get()
+        options = self._default_game_options()
         game_id = str(uuid.uuid4())
-        session = GameSession(game_id=game_id, player_color=player_color)
+        session = GameSession(game_id=game_id, player_color=player_color, options=options)
         self._sessions[game_id] = session
-        self._repo.create_game(game_id, player_color, config.engine.local.skill_level)
+        self._repo.create_game(game_id, player_color, options.skill_level)
         self._commentary_bus.ensure_game(game_id)
 
         engine = await self._engine_router.get_active_engine()
-        depth = config.engine.local.depth
+        depth = session.options.depth
 
         for move in parsed.mainline_moves():
             fen_before = session.board.fen()
@@ -287,6 +313,11 @@ class GameService:
             raise ValueError("Game not found")
         return session
 
+    async def update_game_settings(self, game_id: str, patch: GameOptionsPatch) -> GameSettingsResponse:
+        session = self._get_session(game_id)
+        session.options = self._merge_game_options(session.options, patch)
+        return GameSettingsResponse(game_id=game_id, options=session.options)
+
     @staticmethod
     def _build_pgn_from_move_records(move_history: list[MoveRecord], result: str | None = None) -> str:
         game = chess.pgn.Game()
@@ -330,9 +361,8 @@ class GameService:
                 raise ValueError("It is not the player's turn")
 
             engine = await self._engine_router.get_active_engine()
-            config = self._config_store.get()
-            depth = config.engine.local.depth
-            skill = config.engine.local.skill_level
+            app_config = self._config_store.get()
+            depth = session.options.depth
 
             fen_before = session.board.fen()
             color = "white" if session.board.turn else "black"
@@ -410,14 +440,14 @@ class GameService:
             self._repo.add_move(session.game_id, move_record)
 
             should_comment = (
-                config.commentary.on_every_move
-                or abs(eval_delta) >= config.commentary.min_eval_swing_to_trigger
-                or (config.commentary.always_comment_on_blunders and classification == "Blunder")
+                app_config.commentary.on_every_move
+                or abs(eval_delta) >= app_config.commentary.min_eval_swing_to_trigger
+                or (app_config.commentary.always_comment_on_blunders and classification == "Blunder")
             )
             if should_comment:
                 context = CommentaryContext(
                     kind="player_move",
-                    persona=config.commentary.persona,
+                    persona=session.options.persona,
                     opening=session.opening,
                     move=move_record,
                     best_move=best_move,
@@ -447,18 +477,25 @@ class GameService:
                 config = self._config_store.get()
                 engine = await self._engine_router.get_active_engine()
                 local_engine = await self._engine_router.get_local_engine()
-                depth = config.engine.local.depth
-                skill = config.engine.local.skill_level
+                depth = session.options.depth
+                skill = session.options.skill_level
 
                 fen_before = session.board.fen()
                 color = "white" if session.board.turn else "black"
                 move_number = session.board.fullmove_number
 
                 eval_before_task = asyncio.create_task(engine.evaluate_position(fen_before, depth))
-                best_move_task = asyncio.create_task(engine.get_best_move(fen_before, skill, depth))
+                best_move_task = asyncio.create_task(
+                    engine.get_best_move(
+                        fen_before,
+                        skill,
+                        depth,
+                        think_time_ms=session.options.think_time_ms,
+                    )
+                )
 
                 delay_ms = 0
-                if config.engine.provider == "local" and config.engine.local.artificial_delay.enabled:
+                if config.engine.provider == "local" and session.options.artificial_delay_enabled:
                     delay_ms = await local_engine.compute_artificial_delay_ms(
                         fen_before,
                         min_ms=config.engine.local.artificial_delay.min_ms,
@@ -525,7 +562,7 @@ class GameService:
                 if config.commentary.always_comment_on_engine_moves:
                     context = CommentaryContext(
                         kind="engine_move",
-                        persona=config.commentary.persona,
+                        persona=session.options.persona,
                         opening=session.opening,
                         move=move_record,
                         tactical_description="Improve coordination and pressure key weaknesses.",
@@ -605,9 +642,8 @@ class GameService:
         session = self._get_session(game_id)
         provider = await self._llm_router.get_active_provider()
         engine = await self._engine_router.get_active_engine()
-        config = self._config_store.get()
 
-        top_moves = await engine.get_top_moves(session.board.fen(), n=3, depth=config.engine.local.depth)
+        top_moves = await engine.get_top_moves(session.board.fen(), n=3, depth=session.options.depth)
         context = HintContext(
             fen=session.board.fen(),
             side_to_move="white" if session.board.turn else "black",

@@ -7,7 +7,13 @@ from schemas.domain import Evaluation, MoveCandidate
 
 class ChessEngine(ABC):
     @abstractmethod
-    async def get_best_move(self, fen: str, skill_level: int, depth: int) -> MoveCandidate:
+    async def get_best_move(
+        self,
+        fen: str,
+        skill_level: int,
+        depth: int,
+        think_time_ms: int | None = None,
+    ) -> MoveCandidate:
         raise NotImplementedError
 
     @abstractmethod

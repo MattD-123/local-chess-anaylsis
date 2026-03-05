@@ -113,9 +113,16 @@ class StockfishLocalProvider(ChessEngine):
             except Exception:
                 logger.debug("Stockfish UCI strength options unavailable", exc_info=True)
 
-    def _build_limit(self, depth: int | None = None, *, use_time: bool = False) -> chess.engine.Limit:
+    def _build_limit(
+        self,
+        depth: int | None = None,
+        *,
+        use_time: bool = False,
+        think_time_ms: int | None = None,
+    ) -> chess.engine.Limit:
         if use_time:
-            return chess.engine.Limit(depth=depth or self._default_depth, time=self._think_time_ms / 1000.0)
+            effective_think = think_time_ms if think_time_ms is not None else self._think_time_ms
+            return chess.engine.Limit(depth=depth or self._default_depth, time=effective_think / 1000.0)
         return chess.engine.Limit(depth=depth or self._default_depth)
 
     @staticmethod
@@ -138,9 +145,17 @@ class StockfishLocalProvider(ChessEngine):
         info = await self._with_restart(_analyse, board, limit)
         return _score_to_evaluation(info.get("score"))
 
-    async def get_top_moves(self, fen: str, n: int, depth: int, *, use_time: bool = False) -> list[MoveCandidate]:
+    async def get_top_moves(
+        self,
+        fen: str,
+        n: int,
+        depth: int,
+        *,
+        use_time: bool = False,
+        think_time_ms: int | None = None,
+    ) -> list[MoveCandidate]:
         board = chess.Board(fen)
-        limit = self._build_limit(depth, use_time=use_time)
+        limit = self._build_limit(depth, use_time=use_time, think_time_ms=think_time_ms)
 
         def _analyse_multi(
             engine: chess.engine.SimpleEngine,
@@ -182,7 +197,13 @@ class StockfishLocalProvider(ChessEngine):
         rank_weights = [1.0 / ((idx + 1) ** alpha) for idx in range(len(capped))]
         return random.choices(capped, weights=rank_weights, k=1)[0]
 
-    async def get_best_move(self, fen: str, skill_level: int, depth: int) -> MoveCandidate:
+    async def get_best_move(
+        self,
+        fen: str,
+        skill_level: int,
+        depth: int,
+        think_time_ms: int | None = None,
+    ) -> MoveCandidate:
         # Make lower skills meaningfully weaker by reducing effective search depth.
         bounded_skill = max(0, min(20, skill_level))
         effective_depth = max(4, round(depth * (0.35 + (0.65 * bounded_skill / 20.0))))
@@ -192,6 +213,7 @@ class StockfishLocalProvider(ChessEngine):
             n=max(3, min(8, candidate_count)),
             depth=effective_depth,
             use_time=True,
+            think_time_ms=think_time_ms,
         )
         return self._select_with_skill(top_moves, skill_level)
 

@@ -20,6 +20,7 @@ function skillLabel(level) {
 
 export default function Settings({
   config,
+  gameOptions,
   saveSettings,
   requestHint,
   resign,
@@ -37,16 +38,17 @@ export default function Settings({
   const [pgnError, setPgnError] = useState("");
 
   useEffect(() => {
-    if (!config) {
+    if (!config || !gameOptions) {
       return;
     }
     setForm({
-      engineProvider: config.engine.provider,
-      skillLevel: config.engine.local.skill_level,
-      persona: config.commentary.persona,
-      artificialDelayEnabled: config.engine.local.artificial_delay.enabled,
+      skillLevel: gameOptions.skill_level,
+      depth: gameOptions.depth,
+      thinkTimeMs: gameOptions.think_time_ms,
+      persona: gameOptions.persona,
+      artificialDelayEnabled: gameOptions.artificial_delay_enabled,
     });
-  }, [config]);
+  }, [config, gameOptions]);
 
   const skillText = useMemo(() => {
     if (!form) {
@@ -67,23 +69,12 @@ export default function Settings({
     setSaving(true);
     try {
       const skill = Number(form.skillLevel);
-      const depth = Math.max(4, Math.round(6 + (skill * 0.6)));
-      const thinkTimeMs = Math.round(300 + (skill * 90));
       await saveSettings({
-        engine: {
-          provider: form.engineProvider,
-          local: {
-            skill_level: skill,
-            depth,
-            think_time_ms: thinkTimeMs,
-            artificial_delay: {
-              enabled: Boolean(form.artificialDelayEnabled),
-            },
-          },
-        },
-        commentary: {
-          persona: form.persona,
-        },
+        skill_level: skill,
+        depth: Number(form.depth),
+        think_time_ms: Number(form.thinkTimeMs),
+        artificial_delay_enabled: Boolean(form.artificialDelayEnabled),
+        persona: form.persona,
       });
     } finally {
       setSaving(false);
@@ -138,17 +129,7 @@ export default function Settings({
       <h3 className="font-heading text-base font-bold text-ink">Settings</h3>
 
       <div className="mt-3 grid gap-3 text-sm text-slate-700">
-        <label className="flex flex-col gap-1">
-          Engine Provider
-          <select
-            className="rounded-lg border border-slate-300 bg-white px-2 py-1"
-            value={form.engineProvider}
-            onChange={(event) => updateField("engineProvider", event.target.value)}
-          >
-            <option value="local">local</option>
-            <option value="api">api</option>
-          </select>
-        </label>
+        <p className="text-xs font-semibold text-slate-500">Engine provider: {config.engine.provider}</p>
 
         <label className="flex flex-col gap-1">
           Difficulty: <span className="font-semibold">{skillText}</span>
@@ -158,6 +139,29 @@ export default function Settings({
             max="20"
             value={form.skillLevel}
             onChange={(event) => updateField("skillLevel", Number(event.target.value))}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          Depth
+          <input
+            type="number"
+            min="1"
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1"
+            value={form.depth}
+            onChange={(event) => updateField("depth", Number(event.target.value))}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1">
+          Think Time (ms)
+          <input
+            type="number"
+            min="50"
+            step="50"
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1"
+            value={form.thinkTimeMs}
+            onChange={(event) => updateField("thinkTimeMs", Number(event.target.value))}
           />
         </label>
 

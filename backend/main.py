@@ -24,6 +24,8 @@ from schemas.api import (
     ConfigUpdateRequest,
     HealthResponse,
     HintResponse,
+    GameSettingsRequest,
+    GameSettingsResponse,
     MoveRequest,
     MoveResponse,
     NewGameRequest,
@@ -141,7 +143,11 @@ def _config_store(request: Request) -> ConfigStore:
 async def create_game(payload: NewGameRequest, request: Request) -> NewGameResponse:
     service = _game_service(request)
     try:
-        return await service.new_game(payload.player_color, payload.config_overrides)
+        return await service.new_game(
+            payload.player_color,
+            payload.config_overrides,
+            payload.options,
+        )
     except Exception as exc:
         logger.exception("Failed to create game")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -202,6 +208,18 @@ async def game_analysis(game_id: str, request: Request) -> AnalysisResponse:
 async def game_history(request: Request):
     service = _game_service(request)
     return service.get_history()
+
+
+@app.post("/game/settings", response_model=GameSettingsResponse)
+async def update_game_settings(payload: GameSettingsRequest, request: Request) -> GameSettingsResponse:
+    service = _game_service(request)
+    try:
+        return await service.update_game_settings(payload.game_id, payload.options)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to update game settings")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/game/import-pgn", response_model=PgnImportResponse)

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 
 class FakeEngine:
-    async def get_best_move(self, fen, skill_level, depth):
+    async def get_best_move(self, fen, skill_level, depth, think_time_ms=None):
         board = chess.Board(fen)
         move = next(iter(board.legal_moves))
         return self._candidate(board, move)
@@ -144,7 +144,37 @@ def test_config_and_new_game(client: TestClient):
 
     game_response = client.post("/game/new", json={"player_color": "white"})
     assert game_response.status_code == 200
-    assert game_response.json()["game_id"]
+    game_payload = game_response.json()
+    assert game_payload["game_id"]
+    assert game_payload["options"]["skill_level"] == 10
+    assert game_payload["options"]["persona"] == "coach"
+
+
+def test_game_settings_are_session_scoped(client: TestClient):
+    game = client.post("/game/new", json={"player_color": "white"}).json()
+    game_id = game["game_id"]
+
+    response = client.post(
+        "/game/settings",
+        json={
+            "game_id": game_id,
+            "options": {
+                "skill_level": 4,
+                "depth": 8,
+                "think_time_ms": 450,
+                "artificial_delay_enabled": False,
+                "persona": "rival",
+            },
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["game_id"] == game_id
+    assert payload["options"]["skill_level"] == 4
+    assert payload["options"]["depth"] == 8
+    assert payload["options"]["think_time_ms"] == 450
+    assert payload["options"]["artificial_delay_enabled"] is False
+    assert payload["options"]["persona"] == "rival"
 
 
 def test_move_hint_and_health(client: TestClient):

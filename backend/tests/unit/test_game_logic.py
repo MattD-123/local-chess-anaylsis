@@ -15,11 +15,12 @@ def _service() -> GameService:
 
 def test_classification_thresholds():
     service = _service()
-    assert service._classify_eval_loss(0.05) == "Best"
-    assert service._classify_eval_loss(0.20) == "Good"
-    assert service._classify_eval_loss(0.40) == "Inaccuracy"
-    assert service._classify_eval_loss(1.00) == "Mistake"
-    assert service._classify_eval_loss(2.00) == "Blunder"
+    assert service._classify_eval_loss(0.05, 10) == "Best"
+    assert service._classify_eval_loss(0.20, 10) == "Good"
+    assert service._classify_eval_loss(0.40, 10) == "Inaccuracy"
+    assert service._classify_eval_loss(1.00, 10) == "Mistake"
+    assert service._classify_eval_loss(2.00, 10) == "Blunder"
+    assert service._classify_eval_loss(1.00, 1) == "Forced"
 
 
 def test_player_eval_loss_by_color():

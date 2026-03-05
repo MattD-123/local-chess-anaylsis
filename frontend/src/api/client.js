@@ -89,6 +89,15 @@ export async function updateConfig(patch) {
   return parseResponse(response);
 }
 
+export async function updateGameSettings(payload) {
+  const response = await fetch("/game/settings", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+}
+
 export async function getHealth() {
   const response = await fetch("/health");
   return parseResponse(response);

@@ -96,6 +96,7 @@ export default function App() {
           <Commentary state={state} />
           <Settings
             config={state.config}
+            gameOptions={state.gameOptions}
             saveSettings={saveSettings}
             requestHint={requestHint}
             resign={resign}

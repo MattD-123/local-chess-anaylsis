@@ -8,9 +8,30 @@ from pydantic import BaseModel, ConfigDict, Field
 from schemas.domain import CompletedGame, Evaluation, MoveRecord, OpeningInfo
 
 
+class GameOptions(BaseModel):
+    skill_level: int = Field(ge=0, le=20)
+    depth: int = Field(gt=0)
+    think_time_ms: int = Field(gt=0)
+    artificial_delay_enabled: bool = True
+    persona: Literal["coach", "grandmaster", "commentator", "rival"] = "coach"
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class GameOptionsPatch(BaseModel):
+    skill_level: int | None = Field(default=None, ge=0, le=20)
+    depth: int | None = Field(default=None, gt=0)
+    think_time_ms: int | None = Field(default=None, gt=0)
+    artificial_delay_enabled: bool | None = None
+    persona: Literal["coach", "grandmaster", "commentator", "rival"] | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class NewGameRequest(BaseModel):
     player_color: Literal["white", "black"] = "white"
     config_overrides: dict[str, Any] | None = None
+    options: GameOptionsPatch | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -20,6 +41,7 @@ class NewGameResponse(BaseModel):
     fen: str
     player_color: Literal["white", "black"]
     engine_to_move: bool
+    options: GameOptions
 
 
 class MoveRequest(BaseModel):
@@ -39,6 +61,18 @@ class MoveResponse(BaseModel):
     result: str | None = None
     termination_reason: str | None = None
     engine_thinking: bool = False
+
+
+class GameSettingsRequest(BaseModel):
+    game_id: str
+    options: GameOptionsPatch
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class GameSettingsResponse(BaseModel):
+    game_id: str
+    options: GameOptions
 
 
 class PgnImportRequest(BaseModel):
