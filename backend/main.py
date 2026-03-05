@@ -4,11 +4,13 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import ConfigStore
 from database.repo import ChessRepository
@@ -39,6 +41,8 @@ from services.health import HealthService
 from services.openings import OpeningService
 
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
 # python-chess engine subprocess management requires Proactor loop on Windows.
 if sys.platform == "win32" and hasattr(asyncio, "WindowsProactorEventLoopPolicy"):
@@ -101,6 +105,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if FRONTEND_DIST.exists():
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 
 @app.middleware("http")
@@ -247,3 +256,34 @@ async def update_config(payload: ConfigUpdateRequest, request: Request) -> Confi
 async def health(request: Request) -> HealthResponse:
     service = _health_service(request)
     return await service.get_health()
+
+
+@app.get("/", include_in_schema=False)
+async def frontend_index():
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return PlainTextResponse(
+        "Frontend build not found. Run 'cd frontend && npm run build'.",
+        status_code=503,
+    )
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def frontend_spa_fallback(full_path: str):
+    # Let API/documentation routes continue to use their own handlers.
+    reserved_prefixes = ("game/", "openings/", "config", "health", "docs", "redoc", "openapi.json")
+    if full_path.startswith(reserved_prefixes):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    candidate = FRONTEND_DIST / full_path
+    if candidate.exists() and candidate.is_file():
+        return FileResponse(candidate)
+
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return PlainTextResponse(
+        "Frontend build not found. Run 'cd frontend && npm run build'.",
+        status_code=503,
+    )
