@@ -1,9 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from "react";
 
 import {
+  exportPgn,
   getConfig,
   getHealth,
   getHint,
+  importPgn,
   newGame,
   resignGame,
   submitMove,
@@ -75,6 +77,26 @@ function reducer(state, action) {
         result: action.payload.result,
         terminationReason: action.payload.termination_reason,
         engineThinking: action.payload.engine_thinking,
+      };
+    case "IMPORT_GAME":
+      return {
+        ...state,
+        gameId: action.payload.game_id,
+        playerColor: action.payload.player_color || "white",
+        fen: action.payload.fen,
+        viewFen: null,
+        moveHistory: action.payload.move_history || [],
+        opening: action.payload.opening || null,
+        currentEval: action.payload.current_eval || { normalized_pawns: 0 },
+        commentaryDrafts: {},
+        commentaryHistory: [],
+        typing: false,
+        engineThinking: false,
+        gameOver: Boolean(action.payload.game_over),
+        result: action.payload.result || null,
+        terminationReason: action.payload.termination_reason || null,
+        hint: null,
+        error: null,
       };
     case "ENGINE_MOVE_EVENT":
       return {
@@ -210,6 +232,25 @@ export function GameProvider({ children }) {
     dispatch({ type: "SET_VIEW_FEN", payload: fen });
   }, []);
 
+  const importGamePgn = useCallback(
+    async (pgnText, playerColor = state.playerColor || "white") => {
+      const result = await importPgn({
+        pgn: pgnText,
+        player_color: playerColor,
+      });
+      dispatch({ type: "IMPORT_GAME", payload: result });
+      return result;
+    },
+    [state.playerColor]
+  );
+
+  const exportGamePgn = useCallback(async () => {
+    if (!state.gameId) {
+      throw new Error("Start or import a game first.");
+    }
+    return exportPgn(state.gameId);
+  }, [state.gameId]);
+
   const streamHandlers = useMemo(
     () => ({
       onCommentaryChunk: (payload) => dispatch({ type: "COMMENTARY_CHUNK", payload }),
@@ -234,8 +275,10 @@ export function GameProvider({ children }) {
       resign,
       saveSettings,
       setViewFen,
+      importGamePgn,
+      exportGamePgn,
     }),
-    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen]
+    [state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen, importGamePgn, exportGamePgn]
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

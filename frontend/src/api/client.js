@@ -52,6 +52,24 @@ export async function getGameHistory() {
   return parseResponse(response);
 }
 
+export async function importPgn(payload) {
+  const response = await fetch("/game/import-pgn", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+}
+
+export async function exportPgn(gameId) {
+  const response = await fetch(`/game/export-pgn?game_id=${encodeURIComponent(gameId)}`);
+  if (!response.ok) {
+    const error = await response.text().catch(() => response.statusText);
+    throw new Error(error || "Export failed");
+  }
+  return response.text();
+}
+
 export async function getOpeningStats() {
   const response = await fetch("/openings/stats");
   return parseResponse(response);

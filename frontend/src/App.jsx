@@ -7,10 +7,21 @@ import MoveHistory from "./components/MoveHistory";
 import OpeningDisplay from "./components/OpeningDisplay";
 import Settings from "./components/Settings";
 import MaterialPanel from "./components/MaterialPanel";
+import AnalysisBoard from "./components/AnalysisBoard";
 import { useGame } from "./providers/GameProvider";
 
 export default function App() {
-  const { state, startGame, makeMove, requestHint, resign, saveSettings, setViewFen } = useGame();
+  const {
+    state,
+    startGame,
+    makeMove,
+    requestHint,
+    resign,
+    saveSettings,
+    setViewFen,
+    importGamePgn,
+    exportGamePgn,
+  } = useGame();
   const [dismissedGameOverFor, setDismissedGameOverFor] = useState(null);
 
   useEffect(() => {
@@ -77,6 +88,7 @@ export default function App() {
           <Board state={state} makeMove={makeMove} />
           <MaterialPanel fen={state.fen === "start" ? undefined : state.fen} playerColor={state.playerColor} />
           <MoveHistory state={state} setViewFen={setViewFen} />
+          <AnalysisBoard state={state} setViewFen={setViewFen} />
         </div>
 
         <div className="grid gap-4">
@@ -88,6 +100,10 @@ export default function App() {
             requestHint={requestHint}
             resign={resign}
             hint={state.hint}
+            gameId={state.gameId}
+            playerColor={state.playerColor}
+            importGamePgn={importGamePgn}
+            exportGamePgn={exportGamePgn}
           />
         </div>
       </section>

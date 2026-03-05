@@ -132,6 +132,11 @@ export default function Board({ state, makeMove }) {
 
   const lastMove = state.moveHistory[state.moveHistory.length - 1];
   const [lastFrom, lastTo] = uciToSquares(lastMove?.uci);
+  const analysisMove = state.viewFen
+    ? state.moveHistory.find((move) => move.fen_after === state.viewFen)
+    : null;
+  const bestMoveUci = analysisMove?.best_move || null;
+  const [bestFrom, bestTo] = uciToSquares(bestMoveUci);
 
   const customSquareStyles = {
     ...(lastFrom
@@ -159,6 +164,7 @@ export default function Board({ state, makeMove }) {
       ])
     ),
   };
+  const customArrows = bestFrom && bestTo ? [[bestFrom, bestTo, "rgba(29, 78, 216, 0.72)"]] : [];
 
   return (
     <section className="panel rounded-2xl p-4 md:p-5">
@@ -186,11 +192,15 @@ export default function Board({ state, makeMove }) {
           onPieceDrop={onPieceDrop}
           onSquareClick={onSquareClick}
           customSquareStyles={customSquareStyles}
+          customArrows={customArrows}
           animationDuration={300}
           customDarkSquareStyle={{ backgroundColor: "#6b7280" }}
           customLightSquareStyle={{ backgroundColor: "#e5e7eb" }}
         />
       </div>
+      {!liveBoard && bestMoveUci ? (
+        <p className="mt-3 text-xs font-semibold text-blue-700">Best move suggestion: {bestMoveUci}</p>
+      ) : null}
     </section>
   );
 }

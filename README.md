@@ -7,6 +7,8 @@ An interactive full-stack chess app with:
 - Server-Sent Events (SSE) streaming
 - Opening detection and opening statistics
 - Game history and post-game analysis
+- PGN import/export tooling
+- Interactive analysis board with eval graph and blunder review mode
 - Runtime settings via API-backed config
 
 ## Tech Stack
@@ -87,6 +89,8 @@ Frontend defaults to `http://localhost:5173` and backend to `http://127.0.0.1:80
 - `GET /game/commentary?game_id=...` SSE stream (`commentary_chunk`, `engine_move`, `opening_update`, etc.)
 - `GET /game/history` recent games
 - `GET /game/analysis` game summary
+- `POST /game/import-pgn` import a PGN as a reviewable game
+- `GET /game/export-pgn?game_id=...` export a game as PGN text
 - `GET /openings/stats` opening performance
 - `GET /config` and `POST /config` runtime settings
 - `GET /health` provider/openings health status
