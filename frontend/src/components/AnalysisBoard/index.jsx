@@ -137,7 +137,7 @@ export default function AnalysisBoard({ state, setViewFen }) {
                   {move.move_number}. {move.san}
                 </span>
                 <span className="text-xs font-semibold text-slate-600">
-                  {move.classification} • CPL {Math.round(moveCentipawnLoss(move))}
+                  {move.classification} - CPL {Math.round(moveCentipawnLoss(move))}
                 </span>
               </button>
             );

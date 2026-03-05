@@ -40,6 +40,8 @@ Edit `config.yaml`:
 
 - `engine.local.path`: absolute path to your Stockfish executable
 - `llm.local.model`: installed Ollama model name
+- `engine.local.pool_size`: number of parallel Stockfish workers (default `3`)
+- `runtime.max_active_sessions`: concurrent active game cap (default `100`)
 
 ### 2) Simplest Run (Windows)
 
@@ -82,9 +84,39 @@ npm run dev
 
 Frontend defaults to `http://localhost:5173` and backend to `http://127.0.0.1:8000`.
 
+## LAN Multiplayer (Single Host)
+
+To make the app available to other devices on your local network:
+
+1. Build and serve from backend using the LAN script:
+
+```powershell
+.\scripts\start-lan.ps1
+```
+
+2. Share the LAN URL shown by the script:
+
+```text
+http://<host-ip>:8000
+```
+
+3. Ensure firewall allows inbound TCP 8000:
+
+```powershell
+netsh advfirewall firewall add rule name="Chess LAN 8000" dir=in action=allow protocol=TCP localport=8000
+```
+
+### Multi-user expectations
+
+- Designed for trusted LAN use.
+- Multiple players can run independent games concurrently.
+- Per-game settings are isolated by `game_id` (no cross-user setting collisions).
+- Default local engine pool: `pool_size: 3` (tune in `config.yaml`).
+
 ## API Highlights
 
 - `POST /game/new` create a game
+- `POST /game/settings` update options for one active game
 - `POST /game/move` submit player move
 - `GET /game/commentary?game_id=...` SSE stream (`commentary_chunk`, `engine_move`, `opening_update`, etc.)
 - `GET /game/history` recent games
@@ -107,6 +139,13 @@ To keep this repository lean, `backend/database/openings.db` is intentionally ex
 - If Stockfish path is invalid, engine health will report `down`.
 - If Ollama is unavailable, LLM health will report `down`.
 - Check `GET /health` for current status and error details.
+- If users experience delayed bot replies under load, check `/health` engine metrics:
+  - `queue_depth`
+  - `avg_wait_ms`
+  - `queue_timeout_count`
+- Increase `engine.local.pool_size` if CPU headroom allows.
+- If queue timeouts increase, lower depth/think time in per-game settings.
+- Stale sessions are cleaned automatically (`runtime.session_ttl_hours` and `runtime.cleanup_interval_seconds`).
 
 ## Testing
 

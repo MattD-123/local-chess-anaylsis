@@ -1,4 +1,5 @@
 import importlib
+from concurrent.futures import ThreadPoolExecutor
 
 import chess
 import pytest
@@ -147,7 +148,7 @@ def test_config_and_new_game(client: TestClient):
     game_payload = game_response.json()
     assert game_payload["game_id"]
     assert game_payload["options"]["skill_level"] == 10
-    assert game_payload["options"]["persona"] == "coach"
+    assert game_payload["options"]["persona"] == "rival"
 
 
 def test_game_settings_are_session_scoped(client: TestClient):
@@ -228,3 +229,34 @@ def test_commentary_sse_smoke(client: TestClient):
         assert response.headers["content-type"].startswith("text/event-stream")
         first_chunk = next(response.iter_lines())
         assert "event: status" in first_chunk
+
+
+def test_lan_spa_routes_return_index_when_available(client: TestClient, tmp_path, monkeypatch):
+    import main
+
+    dist = tmp_path / "dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text("<html><body>LAN OK</body></html>", encoding="utf-8")
+    monkeypatch.setattr(main, "FRONTEND_DIST", dist)
+
+    root = client.get("/")
+    assert root.status_code == 200
+    assert "LAN OK" in root.text
+
+    spa = client.get("/some/client/route")
+    assert spa.status_code == 200
+    assert "LAN OK" in spa.text
+
+
+def test_multi_game_move_submission(client: TestClient):
+    games = [client.post("/game/new", json={"player_color": "white"}).json()["game_id"] for _ in range(5)]
+
+    def _play(game_id: str):
+        return client.post("/game/move", json={"game_id": game_id, "move": "e2e4"})
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(_play, games))
+
+    assert all(result.status_code == 200 for result in results)
+    payloads = [result.json() for result in results]
+    assert all(payload["game_id"] in games for payload in payloads)
