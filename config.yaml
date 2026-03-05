@@ -1,0 +1,26 @@
+engine:
+  provider: local
+  local:
+    path: /path/to/stockfish
+    skill_level: 10
+    depth: 12
+    think_time_ms: 1000
+    artificial_delay:
+      enabled: true
+      min_ms: 500
+      max_ms: 4000
+      scale_with_complexity: true
+  api:
+    url: https://lichess.org/api/cloud-eval
+
+llm:
+  local:
+    base_url: http://localhost:11434
+    model: your-ollama-model
+
+commentary:
+  on_every_move: false
+  min_eval_swing_to_trigger: 0.3
+  always_comment_on_blunders: true
+  always_comment_on_engine_moves: true
+  persona: coach

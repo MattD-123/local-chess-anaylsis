@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-start: #fff7ed;
+  --bg-end: #f8fafc;
+  --panel: rgba(255, 255, 255, 0.78);
+  --panel-border: rgba(30, 41, 59, 0.14);
+  --text-main: #0f172a;
+  --text-dim: #334155;
+  --good: #16a34a;
+  --inaccuracy: #ca8a04;
+  --mistake: #ea580c;
+  --blunder: #dc2626;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text-main);
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1300px 500px at 15% -10%, rgba(194, 65, 12, 0.18), transparent 60%),
+    radial-gradient(900px 400px at 90% 0%, rgba(20, 83, 45, 0.14), transparent 55%),
+    linear-gradient(130deg, var(--bg-start), var(--bg-end));
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
