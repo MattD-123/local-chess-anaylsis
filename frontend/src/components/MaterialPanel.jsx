@@ -9,12 +9,21 @@ const BASE_COUNTS = {
   q: 1,
 };
 
-const PIECE_LABELS = {
-  p: "P",
-  n: "N",
-  b: "B",
-  r: "R",
-  q: "Q",
+const PIECE_ICONS = {
+  w: {
+    p: "♙",
+    n: "♘",
+    b: "♗",
+    r: "♖",
+    q: "♕",
+  },
+  b: {
+    p: "♟",
+    n: "♞",
+    b: "♝",
+    r: "♜",
+    q: "♛",
+  },
 };
 
 const PIECE_VALUES = {
@@ -94,18 +103,25 @@ export default function MaterialPanel({ fen, playerColor }) {
         ? `You are down ${perspectiveImbalance}`
         : "Material is equal";
 
-  const renderList = (items) => {
+  const renderList = (items, capturedColor) => {
     if (items.length === 0) {
       return <span className="text-slate-500">none</span>;
     }
-    return items.map((item) => (
-      <span
-        key={item.piece}
-        className="rounded border border-slate-300 bg-white/80 px-2 py-0.5 text-xs font-semibold text-slate-700"
-      >
-        {PIECE_LABELS[item.piece]}x{item.count}
-      </span>
-    ));
+    const icons = [];
+    for (const item of items) {
+      for (let index = 0; index < item.count; index += 1) {
+        icons.push(
+          <span
+            key={`${capturedColor}-${item.piece}-${index}`}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white/90 text-lg leading-none text-slate-900"
+            title={item.piece}
+          >
+            {PIECE_ICONS[capturedColor][item.piece]}
+          </span>
+        );
+      }
+    }
+    return icons;
   };
 
   return (
@@ -116,11 +132,11 @@ export default function MaterialPanel({ fen, playerColor }) {
       <div className="mt-3 space-y-2 text-sm">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Captured by White</p>
-          <div className="flex flex-wrap gap-1">{renderList(material.capturedByWhite)}</div>
+          <div className="flex flex-wrap gap-1">{renderList(material.capturedByWhite, "b")}</div>
         </div>
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Captured by Black</p>
-          <div className="flex flex-wrap gap-1">{renderList(material.capturedByBlack)}</div>
+          <div className="flex flex-wrap gap-1">{renderList(material.capturedByBlack, "w")}</div>
         </div>
       </div>
     </section>
