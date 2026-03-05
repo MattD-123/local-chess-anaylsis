@@ -5,6 +5,9 @@ engine:
     skill_level: 10
     depth: 12
     think_time_ms: 1000
+    pool_size: 3
+    max_queue_size: 50
+    queue_timeout_ms: 8000
     artificial_delay:
       enabled: true
       min_ms: 500

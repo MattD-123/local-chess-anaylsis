@@ -35,6 +35,9 @@ class EngineLocalConfig(BaseModel):
     skill_level: int = 10
     depth: int = 15
     think_time_ms: int = 2000
+    pool_size: int = 3
+    max_queue_size: int = 50
+    queue_timeout_ms: int = 8000
     artificial_delay: ArtificialDelayConfig = Field(default_factory=ArtificialDelayConfig)
 
     model_config = ConfigDict(extra="forbid")
@@ -58,6 +61,27 @@ class EngineLocalConfig(BaseModel):
     def validate_think_time(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("engine.local.think_time_ms must be > 0")
+        return value
+
+    @field_validator("pool_size")
+    @classmethod
+    def validate_pool_size(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("engine.local.pool_size must be > 0")
+        return value
+
+    @field_validator("max_queue_size")
+    @classmethod
+    def validate_max_queue_size(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("engine.local.max_queue_size must be > 0")
+        return value
+
+    @field_validator("queue_timeout_ms")
+    @classmethod
+    def validate_queue_timeout_ms(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("engine.local.queue_timeout_ms must be > 0")
         return value
 
 

@@ -160,6 +160,7 @@ class ConfigUpdateRequest(BaseModel):
 class ProviderHealth(BaseModel):
     status: Literal["ok", "degraded", "down"]
     detail: str | None = None
+    metrics: dict[str, Any] | None = None
 
 
 class HealthResponse(BaseModel):

@@ -25,6 +25,7 @@ class HealthService:
     async def get_health(self) -> HealthResponse:
         config = self._config_store.get()
         engine_statuses = await self._engine_router.get_provider_health()
+        engine_metrics = await self._engine_router.get_active_engine_metrics()
         llm_statuses = await self._llm_router.get_provider_health()
         openings_health = self._openings_service.health()
 
@@ -32,7 +33,7 @@ class HealthService:
         selected_llm = llm_statuses.get("local", ("down", "local provider unavailable"))
 
         return HealthResponse(
-            engine=ProviderHealth(status=selected_engine[0], detail=selected_engine[1]),
+            engine=ProviderHealth(status=selected_engine[0], detail=selected_engine[1], metrics=engine_metrics),
             llm=ProviderHealth(status=selected_llm[0], detail=selected_llm[1]),
             openings=ProviderHealth(status=openings_health.status, detail=openings_health.detail),
             timestamp=datetime.now(timezone.utc),

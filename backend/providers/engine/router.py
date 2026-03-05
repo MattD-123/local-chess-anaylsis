@@ -6,15 +6,16 @@ from config import ConfigStore
 from providers.engine.base import ChessEngine
 from providers.engine.stockfish_api import StockfishAPIProvider
 from providers.engine.stockfish_local import StockfishLocalProvider
+from providers.engine.stockfish_pool import StockfishPoolProvider
 
 
 class EngineRouter:
     def __init__(self, config_store: ConfigStore):
         self._config_store = config_store
         self._lock = asyncio.Lock()
-        self._local: StockfishLocalProvider | None = None
+        self._local: ChessEngine | None = None
         self._api: StockfishAPIProvider | None = None
-        self._local_path: str | None = None
+        self._local_signature: tuple[str, int, int, int, int, int] | None = None
         self._api_url: str | None = None
 
     async def _ensure_instances(self) -> None:
@@ -22,15 +23,33 @@ class EngineRouter:
 
         async with self._lock:
             local_cfg = config.engine.local
-            if self._local is None or self._local_path != local_cfg.path:
+            local_signature = (
+                local_cfg.path,
+                local_cfg.think_time_ms,
+                local_cfg.depth,
+                local_cfg.pool_size,
+                local_cfg.max_queue_size,
+                local_cfg.queue_timeout_ms,
+            )
+            if self._local is None or self._local_signature != local_signature:
                 if self._local is not None:
                     await self._local.close()
-                self._local = StockfishLocalProvider(
-                    path=local_cfg.path,
-                    think_time_ms=local_cfg.think_time_ms,
-                    default_depth=local_cfg.depth,
-                )
-                self._local_path = local_cfg.path
+                if local_cfg.pool_size > 1:
+                    self._local = StockfishPoolProvider(
+                        path=local_cfg.path,
+                        think_time_ms=local_cfg.think_time_ms,
+                        default_depth=local_cfg.depth,
+                        pool_size=local_cfg.pool_size,
+                        max_queue_size=local_cfg.max_queue_size,
+                        queue_timeout_ms=local_cfg.queue_timeout_ms,
+                    )
+                else:
+                    self._local = StockfishLocalProvider(
+                        path=local_cfg.path,
+                        think_time_ms=local_cfg.think_time_ms,
+                        default_depth=local_cfg.depth,
+                    )
+                self._local_signature = local_signature
 
             api_cfg = config.engine.api
             if self._api is None or self._api_url != api_cfg.url:
@@ -52,7 +71,7 @@ class EngineRouter:
             return self._api  # type: ignore[return-value]
         return self._local  # type: ignore[return-value]
 
-    async def get_local_engine(self) -> StockfishLocalProvider:
+    async def get_local_engine(self) -> ChessEngine:
         await self._ensure_instances()
         return self._local  # type: ignore[return-value]
 
@@ -61,6 +80,12 @@ class EngineRouter:
         local_status = await self._local.health() if self._local else ("down", "local provider not initialized")
         api_status = await self._api.health() if self._api else ("down", "api provider not initialized")
         return {"local": local_status, "api": api_status}
+
+    async def get_active_engine_metrics(self) -> dict | None:
+        await self._ensure_instances()
+        if isinstance(self._local, StockfishPoolProvider):
+            return self._local.metrics()
+        return None
 
     async def close(self) -> None:
         if self._local is not None:
