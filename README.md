@@ -1,4 +1,5 @@
 # Chess App (FastAPI + React)
+Copyright (C) 2026 Matthew Doe
 
 An interactive full-stack chess app with:
 - Local Stockfish engine integration
@@ -115,8 +116,6 @@ cd frontend
 npm test
 ```
 
-## Ways To Simplify Even Further
+## License
 
-1. Add Docker Compose for backend + frontend + Ollama and run with one command.
-2. Add a root `justfile` or `Makefile` with `setup`, `dev`, and `test` targets.
-3. Add GitHub Actions to run backend tests and frontend build automatically on push.
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See `license.txt`.
