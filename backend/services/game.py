@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -20,6 +21,7 @@ from schemas.api import (
     MoveResponse,
     NewGameResponse,
     OpeningStatsResponse,
+    PgnImportResponse,
     ResignResponse,
 )
 from schemas.domain import CommentaryContext, Evaluation, HintContext, MoveCandidate, MoveRecord, OpeningInfo
@@ -87,6 +89,14 @@ class GameService:
     @staticmethod
     def _compute_player_eval_loss(player_color: str, before: Evaluation, after: Evaluation) -> float:
         if player_color == "white":
+            loss = before.normalized_pawns - after.normalized_pawns
+        else:
+            loss = after.normalized_pawns - before.normalized_pawns
+        return max(0.0, loss)
+
+    @staticmethod
+    def _compute_side_eval_loss(side: str, before: Evaluation, after: Evaluation) -> float:
+        if side == "white":
             loss = before.normalized_pawns - after.normalized_pawns
         else:
             loss = after.normalized_pawns - before.normalized_pawns
@@ -162,11 +172,153 @@ class GameService:
             engine_to_move=not session.player_turn(),
         )
 
+    async def import_pgn(self, pgn_text: str, player_color: str) -> PgnImportResponse:
+        text = (pgn_text or "").strip()
+        if not text:
+            raise ValueError("PGN content is required")
+
+        parsed = chess.pgn.read_game(io.StringIO(text))
+        if parsed is None:
+            raise ValueError("Unable to parse PGN")
+
+        config = self._config_store.get()
+        game_id = str(uuid.uuid4())
+        session = GameSession(game_id=game_id, player_color=player_color)
+        self._sessions[game_id] = session
+        self._repo.create_game(game_id, player_color, config.engine.local.skill_level)
+        self._commentary_bus.ensure_game(game_id)
+
+        engine = await self._engine_router.get_active_engine()
+        depth = config.engine.local.depth
+
+        for move in parsed.mainline_moves():
+            fen_before = session.board.fen()
+            color = "white" if session.board.turn else "black"
+            move_number = session.board.fullmove_number
+            legal_move_count = session.board.legal_moves.count()
+
+            if move not in session.board.legal_moves:
+                raise ValueError(f"Invalid PGN move at ply {len(session.move_history) + 1}: {move.uci()}")
+
+            eval_before_task = asyncio.create_task(engine.evaluate_position(fen_before, depth))
+            top_moves_task = asyncio.create_task(engine.get_top_moves(fen_before, n=3, depth=depth))
+
+            san = session.board.san(move)
+            session.board.push(move)
+            fen_after = session.board.fen()
+
+            eval_after_task = asyncio.create_task(engine.evaluate_position(fen_after, depth))
+            eval_before, top_moves, eval_after = await asyncio.gather(
+                eval_before_task,
+                top_moves_task,
+                eval_after_task,
+            )
+
+            best_move = top_moves[0] if top_moves else None
+            eval_loss = self._compute_side_eval_loss(color, eval_before, eval_after)
+            classification = self._classify_eval_loss(eval_loss, legal_move_count)
+            eval_delta = eval_after.normalized_pawns - eval_before.normalized_pawns
+
+            opening = self._opening_service.detect_opening(fen_after, session.uci_history + [move.uci()])
+            if opening:
+                session.opening = opening
+                session.in_opening = True
+            else:
+                session.in_opening = False
+
+            move_record = MoveRecord(
+                move_number=move_number,
+                color=color,
+                san=san,
+                uci=move.uci(),
+                fen_before=fen_before,
+                fen_after=fen_after,
+                eval_before=eval_before,
+                eval_after=eval_after,
+                eval_delta=eval_delta,
+                classification=classification,
+                commentary=None,
+                best_move=best_move.uci if best_move else None,
+                in_opening=session.in_opening,
+            )
+            session.move_history.append(move_record)
+            self._repo.add_move(session.game_id, move_record)
+
+        result, termination = self._game_result_from_board(session.board)
+        header_result = (parsed.headers.get("Result") or "").strip()
+        if result == "*" and header_result in {"1-0", "0-1", "1/2-1/2"}:
+            result = header_result
+        if termination == "ongoing":
+            termination = "imported_pgn"
+
+        session.game_over = True
+        session.result = result
+        session.termination_reason = termination
+
+        pgn_for_storage = str(parsed).strip() or str(chess.pgn.Game.from_board(session.board)).strip()
+        self._repo.finalize_game(
+            session.game_id,
+            result=result,
+            termination_reason=termination,
+            opening_eco=session.opening.eco if session.opening else None,
+            opening_name=session.opening.name if session.opening else None,
+            pgn=pgn_for_storage,
+            move_count=len(session.move_history),
+        )
+        self._repo.refresh_opening_stats()
+
+        current_eval = session.move_history[-1].eval_after if session.move_history else Evaluation(normalized_pawns=0.0)
+        return PgnImportResponse(
+            game_id=session.game_id,
+            player_color=session.player_color,
+            fen=session.board.fen(),
+            move_history=session.move_history,
+            opening=session.opening,
+            current_eval=current_eval,
+            game_over=session.game_over,
+            result=session.result,
+            termination_reason=session.termination_reason,
+            imported_move_count=len(session.move_history),
+        )
+
     def _get_session(self, game_id: str) -> GameSession:
         session = self._sessions.get(game_id)
         if session is None:
             raise ValueError("Game not found")
         return session
+
+    @staticmethod
+    def _build_pgn_from_move_records(move_history: list[MoveRecord], result: str | None = None) -> str:
+        game = chess.pgn.Game()
+        node = game
+        board = chess.Board()
+        for record in move_history:
+            move = chess.Move.from_uci(record.uci)
+            if move not in board.legal_moves:
+                break
+            node = node.add_variation(move)
+            board.push(move)
+
+        game.headers["Event"] = "Interactive Chess Coach"
+        game.headers["Site"] = "Local"
+        game.headers["Result"] = result or "*"
+        return str(game)
+
+    def export_pgn(self, game_id: str) -> str:
+        session = self._sessions.get(game_id)
+        if session is not None:
+            return self._build_pgn_from_move_records(session.move_history, result=session.result)
+
+        game_row = self._repo.get_game(game_id)
+        if not game_row:
+            raise ValueError("Game not found")
+
+        pgn = (game_row.get("pgn") or "").strip()
+        if pgn:
+            return pgn
+
+        move_history = self._repo.get_moves(game_id)
+        return self._build_pgn_from_move_records(move_history, result=game_row.get("result"))
 
     async def submit_player_move(self, game_id: str, move_text: str) -> MoveResponse:
         session = self._get_session(game_id)

@@ -41,6 +41,26 @@ class MoveResponse(BaseModel):
     engine_thinking: bool = False
 
 
+class PgnImportRequest(BaseModel):
+    pgn: str
+    player_color: Literal["white", "black"] = "white"
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PgnImportResponse(BaseModel):
+    game_id: str
+    player_color: Literal["white", "black"]
+    fen: str
+    move_history: list[MoveRecord]
+    opening: OpeningInfo | None = None
+    current_eval: Evaluation
+    game_over: bool
+    result: str | None = None
+    termination_reason: str | None = None
+    imported_move_count: int
+
+
 class HintRequest(BaseModel):
     game_id: str
 

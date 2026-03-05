@@ -8,7 +8,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from config import ConfigStore
 from database.repo import ChessRepository
@@ -27,6 +27,8 @@ from schemas.api import (
     NewGameRequest,
     NewGameResponse,
     OpeningStatsResponse,
+    PgnImportRequest,
+    PgnImportResponse,
     ResignRequest,
     ResignResponse,
 )
@@ -191,6 +193,32 @@ async def game_analysis(game_id: str, request: Request) -> AnalysisResponse:
 async def game_history(request: Request):
     service = _game_service(request)
     return service.get_history()
+
+
+@app.post("/game/import-pgn", response_model=PgnImportResponse)
+async def import_pgn(payload: PgnImportRequest, request: Request) -> PgnImportResponse:
+    service = _game_service(request)
+    try:
+        return await service.import_pgn(payload.pgn, payload.player_color)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to import PGN")
+        raise HTTPException(status_code=500, detail="Internal error") from exc
+
+
+@app.get("/game/export-pgn", response_class=PlainTextResponse)
+async def export_pgn(game_id: str, request: Request) -> PlainTextResponse:
+    service = _game_service(request)
+    try:
+        pgn_text = service.export_pgn(game_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return PlainTextResponse(
+        pgn_text,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{game_id}.pgn"'},
+    )
 
 
 @app.get("/openings/stats", response_model=OpeningStatsResponse)

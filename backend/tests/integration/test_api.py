@@ -164,6 +164,28 @@ def test_move_hint_and_health(client: TestClient):
     assert "engine" in payload and "llm" in payload and "openings" in payload
 
 
+def test_import_and_export_pgn(client: TestClient):
+    pgn = """
+[Event "Example"]
+[Site "Local"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 1-0
+""".strip()
+
+    import_response = client.post("/game/import-pgn", json={"pgn": pgn, "player_color": "white"})
+    assert import_response.status_code == 200
+    payload = import_response.json()
+    assert payload["game_id"]
+    assert payload["imported_move_count"] == 6
+    assert payload["game_over"] is True
+
+    export_response = client.get("/game/export-pgn", params={"game_id": payload["game_id"]})
+    assert export_response.status_code == 200
+    exported = export_response.text
+    assert "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6" in exported
+
+
 def test_commentary_sse_smoke(client: TestClient):
     async def fake_stream(game_id):
         yield "event: status\\ndata: {\"typing\": false}\\n\\n"
